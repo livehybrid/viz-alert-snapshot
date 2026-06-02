@@ -67,11 +67,14 @@ small senders rather than piggybacking other modular actions.
 
 | # | Step | Status |
 |---|------|--------|
-| 3.1 | Generalize alert action `render_viz_email` → `render_and_notify` (destinations[]) | ⬜ |
-| 3.2 | Sender interface + `bin/lib/senders/{email,telegram,slack,teams}.py` | ⬜ |
-| 3.3 | Secrets via `storage/passwords` (per-destination creds) | ⬜ |
-| 3.4 | UI: destinations editor + per-channel test-send | ⬜ |
-| 3.5 | Telegram `sendPhoto`; Slack `files.upload`; Teams card; email (done) | ⬜ |
+| 3.1 | `render_and_notify` alert action: render once, read KV config, fan out to destinations[] | ✅ (fire-time untested live) |
+| 3.2 | Sender interface + `bin/lib/senders/{email,telegram,slack,webhook}.py` + registry/dispatch | ✅ |
+| 3.3 | Secrets via `storage/passwords` (`secrets.py`) + `settings_api` endpoint | ✅ |
+| 3.4 | UI: destinations editor + Channels credential modal | ✅ |
+| 3.5 | Telegram `sendPhoto`; Slack external-upload; generic webhook (json/multipart); email | ✅ code (needs creds/relay to test) |
+| 3.6 | Per-destination test-send button | ⬜ |
+| 3.7 | Auto-enable `render_and_notify` on the saved search from Save (opt-in toggle) | ⬜ (manual for now: add the action to the alert) |
+| 3.8 | MS Teams (Adaptive Card / hosted image) | ⬜ |
 
 ---
 
