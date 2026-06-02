@@ -43,11 +43,19 @@ export async function getSavedSearches(signal) {
     u.searchParams.append('count', '0');
     const resp = await fetch(u.toString(), { ...init, method: 'GET', signal });
     const data = await asJson(resp);
-    return (data.entry || []).map((e) => {
+    // The /servicesNS/-/-/ wildcard can return the same object once per namespace
+    // it is visible in, so dedupe by its owning (app, owner, name).
+    const seen = new Set();
+    const out = [];
+    for (const e of (data.entry || [])) {
         const c = e.content || {};
+        const app = e.acl?.app;
+        const owner = e.acl?.owner;
+        const key = `${app}/${owner}/${e.name}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         const actions = String(c.actions || '').split(',').map((s) => s.trim());
         const hasAction = actions.includes('render_and_notify') || actions.includes('render_viz_email');
-        // Pull any params configured via the native alert UI, for fallback load.
         const actionParams = {};
         ['render_and_notify', 'render_viz_email'].forEach((act) => {
             const pfx = `action.${act}.param.`;
@@ -55,27 +63,27 @@ export async function getSavedSearches(signal) {
                 if (k.startsWith(pfx)) actionParams[k.slice(pfx.length)] = c[k];
             });
         });
-        return {
-            name: e.name,
-            app: e.acl?.app,
-            owner: e.acl?.owner,
-            sharing: e.acl?.sharing,
+        out.push({
+            name: e.name, app, owner, sharing: e.acl?.sharing,
             search: c.search || '',
             scheduled: c.is_scheduled === true || c.is_scheduled === '1',
             earliest: c['dispatch.earliest_time'] || '-24h',
             latest: c['dispatch.latest_time'] || 'now',
-            hasAction,
-            actionParams,
-        };
-    });
+            hasAction, actionParams,
+        });
+    }
+    return out;
 }
 
-/** Attach (enable) the render_and_notify alert action on a saved search. */
+/** Attach (enable) the render_and_notify alert action on a saved search.
+ *  IMPORTANT: write to the object's real (owner, app) namespace — a POST with a
+ *  wildcard owner ('-') makes Splunk CLONE the search into the caller's private
+ *  namespace instead of editing it in place. */
 export async function enableAlertAction(searchName, searchApp, searchOwner, signal) {
     const init = getDefaultFetchInit();
     const u = new URL(
         createRESTURL(`saved/searches/${encodeURIComponent(searchName)}`,
-            { app: searchApp || '-', owner: searchOwner || '-' }),
+            { app: searchApp || 'search', owner: searchOwner || 'nobody' }),
         window.location.origin);
     u.searchParams.append('output_mode', 'json');
     const resp = await fetch(u.toString(), {
