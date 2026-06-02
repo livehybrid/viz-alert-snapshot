@@ -35,11 +35,11 @@ existing searches and create new ones with the alert action configured."
 
 | # | Step | Status |
 |---|------|--------|
-| 2.1 | Migrate app to UCC single-package layout (mirror CIMPlicity) | ⬜ |
-| 2.2 | KV store: `collections.conf` + `transforms.conf` for `alert_viz_configs` | ⬜ |
-| 2.3 | Preview REST handler `bin/preview.py` (config → PNG b64), `restmap.conf` + `web.conf` | ⬜ |
-| 2.4 | Searches REST handler (list saved searches/alerts/reports; create/update) | ⬜ |
-| 2.5 | Config REST handler (CRUD KV via batch_save raw-JSON helper) | ⬜ |
+| 2.1 | Migrate app to UCC single-package layout (mirror CIMPlicity) | 🟡 scaffolded, needs build |
+| 2.2 | KV store: `collections.conf` + `transforms.conf` for `alert_viz_configs` | ✅ |
+| 2.3 | Preview REST handler `bin/preview.py` (config → PNG b64), `restmap.conf` + `web.conf` | ✅ |
+| 2.4 | ~~Searches REST handler~~ — UI uses stock `saved/searches` REST directly (no custom handler) | ✅ n/a |
+| 2.5 | Config REST handler (CRUD KV via batch_save raw-JSON helper) | ✅ |
 | 2.6 | Template-based `home` view + `home.html` template | ⬜ |
 | 2.7 | React app: search picker (`@splunk/react-ui`) | ⬜ |
 | 2.8 | React: viz type + options form on the search's fields | ⬜ |
