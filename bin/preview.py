@@ -46,31 +46,43 @@ SAMPLE_ROWS = [
 ]
 
 
+APP = 'viz-alert-snapshot'
+
+
 def _oneshot(session_key, spl, earliest='-24h', latest='now', count=MAX_PREVIEW_ROWS):
-    """Run a count-limited oneshot search and return result rows as dicts."""
-    import splunklib.client as client
-    import splunklib.results as results_reader
-    if not spl.strip().lstrip().startswith(('search ', '|', 'search\t')):
+    """Run a count-limited oneshot search and return result rows as dicts.
+
+    Uses splunk.rest (always present in Splunk's python) rather than the
+    splunklib SDK, which isn't installed in every Splunk.
+    """
+    import splunk.rest as rest
+    if not spl.lstrip().startswith(('search ', '|', 'search\t')):
         spl = 'search ' + spl
-    service = client.connect(token=session_key, host='127.0.0.1', port=8089, scheme='https')
-    job = service.jobs.oneshot(spl, earliest_time=earliest, latest_time=latest,
-                               count=count, output_mode='json')
-    rows = []
-    for item in results_reader.JSONResultsReader(job):
-        if isinstance(item, dict):
-            rows.append(item)
-    return rows
+    postargs = {
+        'search': spl,
+        'exec_mode': 'oneshot',
+        'output_mode': 'json',
+        'earliest_time': earliest,
+        'latest_time': latest,
+        'count': count,
+    }
+    _, content = rest.simpleRequest(
+        '/servicesNS/nobody/%s/search/jobs' % APP,
+        sessionKey=session_key, postargs=postargs, method='POST')
+    data = json.loads(content)
+    return data.get('results', [])
 
 
 def _resolve_spl(session_key, search_name):
-    """Resolve a saved search name to its SPL + time range."""
-    import splunklib.client as client
-    service = client.connect(token=session_key, host='127.0.0.1', port=8089, scheme='https',
-                             app='viz-alert-snapshot')
-    ss = service.saved_searches[search_name]
-    content = ss.content
-    return content.get('search', ''), content.get('dispatch.earliest_time', '-24h'), \
-        content.get('dispatch.latest_time', 'now')
+    """Resolve a saved search name to its SPL + dispatch time range."""
+    import splunk.rest as rest
+    from urllib.parse import quote
+    _, content = rest.simpleRequest(
+        '/servicesNS/-/%s/saved/searches/%s' % (APP, quote(search_name, safe='')),
+        sessionKey=session_key, getargs={'output_mode': 'json'})
+    c = (json.loads(content).get('entry') or [{}])[0].get('content', {})
+    return c.get('search', ''), c.get('dispatch.earliest_time', '-24h'), \
+        c.get('dispatch.latest_time', 'now')
 
 
 def _get_rows(session_key, cfg):
