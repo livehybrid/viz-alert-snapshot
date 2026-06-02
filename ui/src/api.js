@@ -70,6 +70,24 @@ export async function getSavedSearches(signal) {
     });
 }
 
+/** Attach (enable) the render_and_notify alert action on a saved search. */
+export async function enableAlertAction(searchName, searchApp, searchOwner, signal) {
+    const init = getDefaultFetchInit();
+    const u = new URL(
+        createRESTURL(`saved/searches/${encodeURIComponent(searchName)}`,
+            { app: searchApp || '-', owner: searchOwner || '-' }),
+        window.location.origin);
+    u.searchParams.append('output_mode', 'json');
+    const resp = await fetch(u.toString(), {
+        ...init,
+        method: 'POST',
+        headers: { ...init.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ 'action.render_and_notify': '1' }).toString(),
+        signal,
+    });
+    return asJson(resp);
+}
+
 /** Render the config now and deliver to its destinations (test send). */
 export async function testSend(config, signal) {
     const init = getDefaultFetchInit();

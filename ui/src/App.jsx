@@ -18,9 +18,11 @@ import Message from '@splunk/react-ui/Message';
 import WaitSpinner from '@splunk/react-ui/WaitSpinner';
 import Table from '@splunk/react-ui/Table';
 import Modal from '@splunk/react-ui/Modal';
+import Switch from '@splunk/react-ui/Switch';
 
 import {
     getSavedSearches, getConfig, saveConfig, previewConfig, getSettings, saveSettings, testSend,
+    enableAlertAction,
 } from './api';
 
 const VIZ_TYPES = [
@@ -95,6 +97,7 @@ export default function App() {
     const [loading, setLoading] = useState(false);
     const [previewing, setPreviewing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [attachAction, setAttachAction] = useState(true);
     const [testing, setTesting] = useState(null);
     const [error, setError] = useState(null);
     const [notice, setNotice] = useState(null);
@@ -185,10 +188,20 @@ export default function App() {
         try { cfg = currentConfig(); } catch (e) { setError(e.message); return; }
         setSaving(true);
         saveConfig(cfg)
-            .then(() => setNotice(`Saved configuration for “${selected}”.`))
+            .then(() => {
+                if (!attachAction) {
+                    setNotice(`Saved configuration for “${selected}”.`);
+                    return null;
+                }
+                return enableAlertAction(selected, config.search_app, config.search_owner)
+                    .then(() => setNotice(`Saved “${selected}” and attached the alert action.`))
+                    .catch((e) => setNotice(
+                        `Saved “${selected}”, but couldn't attach the action (${e.message}). `
+                        + 'Add "Render Viz & Notify" to the alert manually.'));
+            })
             .catch((e) => setError(`Save failed: ${e.message}`))
             .finally(() => setSaving(false));
-    }, [config, optionsText, selected]);
+    }, [config, optionsText, selected, attachAction]);
 
     const onTest = (idx) => {
         setError(null); setNotice(null);
@@ -284,6 +297,12 @@ export default function App() {
                                 label={previewing ? 'Rendering…' : 'Preview'} />
                             <Button onClick={onSave} disabled={!selected || saving}
                                 label={saving ? 'Saving…' : 'Save'} />
+                        </div>
+                        <div style={{ marginTop: 8 }}>
+                            <Switch value="attach" selected={attachAction} appearance="checkbox"
+                                onClick={() => setAttachAction((v) => !v)}>
+                                Attach the “Render Viz &amp; Notify” action to this alert on save
+                            </Switch>
                         </div>
                     </Card>
 
