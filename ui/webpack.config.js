@@ -1,21 +1,13 @@
 /*
- * Builds the React pages into the app's appserver/static/pages/ so the
- * template-based home view can load /static/app/viz-alert-snapshot/pages/home.js.
- *
- * Uses @splunk/webpack-configs as the base (same as the CIMPlicity reference).
+ * Self-contained build (no dependency on @splunk/webpack-configs internals):
+ * babel-loader + @splunk/babel-preset, everything bundled into one page script.
+ * Output → ../appserver/static/pages/home.js so the template view can load
+ * /static/app/viz-alert-snapshot/pages/home.js.
  */
 const path = require('path');
-const { merge } = require('webpack-merge');
 
-let baseConfig = {};
-try {
-    // eslint-disable-next-line global-require, import/no-unresolved
-    baseConfig = require('@splunk/webpack-configs/base.js').default || {};
-} catch (e) {
-    // base config not installed yet; entry/output below are still valid
-}
-
-module.exports = merge(baseConfig, {
+module.exports = {
+    mode: 'production',
     entry: {
         home: path.join(__dirname, 'src', 'home.jsx'),
     },
@@ -26,4 +18,16 @@ module.exports = merge(baseConfig, {
     resolve: {
         extensions: ['.js', '.jsx'],
     },
-});
+    module: {
+        rules: [
+            {
+                test: /\.(js|jsx)$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: { presets: ['@splunk/babel-preset'] },
+                },
+            },
+        ],
+    },
+};
