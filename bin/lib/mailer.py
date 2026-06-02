@@ -1,27 +1,25 @@
-"""mailer.py — read Splunk's configured email settings and send a PNG snapshot."""
-import json
+"""mailer.py — read Splunk's configured email settings and send a PNG snapshot.
+
+- Email settings are read via Splunk's own EAI/REST (TLS verified against Splunk's
+  CA); the SMTP password is decrypted exactly like core sendemail.
+- The SMTP connection to the configured relay uses a lenient TLS context, matching
+  Splunk's own email behaviour (Splunk does not verify the relay certificate, and
+  we reuse the operator's Splunk email configuration). This is the one place we
+  don't strictly verify, and it is scoped to the relay only.
+"""
 import ssl
+import json
 import smtplib
-import urllib.parse
-import urllib.request
 from email.message import EmailMessage
 from html import escape as _html_escape
 
 
-def _ctx():
+def _smtp_context():
+    # Lenient — matches core Splunk email (relays are often internal/self-signed).
     c = ssl.create_default_context()
     c.check_hostname = False
     c.verify_mode = ssl.CERT_NONE
     return c
-
-
-def _splunkd_get(server_uri, session_key, path, params=None):
-    url = server_uri.rstrip('/') + path
-    if params:
-        url += '?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={'Authorization': 'Splunk ' + session_key})
-    with urllib.request.urlopen(req, context=_ctx(), timeout=15) as r:
-        return json.loads(r.read().decode('utf-8'))
 
 
 def _decrypt(val):
@@ -45,21 +43,21 @@ def get_email_settings(server_uri, session_key):
     """
     truthy = ('1', 'true', 'True', True)
     c = {}
-    # Prefer the Python EAI (same path sendemail uses); fall back to REST.
+    # Prefer the Python EAI (same path sendemail uses); both go through Splunk's
+    # REST layer with TLS verified against Splunk's configured CA.
     try:
         import splunk.entity as entity
         c = dict(entity.getEntity('admin/alert_actions', 'email',
                                   owner='nobody', sessionKey=session_key))
     except Exception:
-        for path in ('/services/admin/alert_actions/email',
-                     '/services/configs/conf-alert_actions/email'):
-            try:
-                data = _splunkd_get(server_uri, session_key, path, {'output_mode': 'json'})
-                c = (data.get('entry') or [{}])[0].get('content', {})
-                if c:
-                    break
-            except Exception:
-                continue
+        try:
+            import splunk.rest as rest
+            _, content = rest.simpleRequest('/services/admin/alert_actions/email',
+                                            sessionKey=session_key,
+                                            getargs={'output_mode': 'json'}, method='GET')
+            c = (json.loads(content).get('entry') or [{}])[0].get('content', {})
+        except Exception:
+            c = {}
 
     raw_pw = c.get('clear_password') or c.get('auth_password') or ''
     return {
@@ -90,11 +88,11 @@ def send_snapshot(settings, to_addrs, subject, body_text, png_bytes, cid='snapsh
     port = int(port or (465 if settings['use_ssl'] else 25))
     encrypted = settings['auth_password'].startswith('$')  # Splunk-encrypted -> unusable here
     if settings['use_ssl']:
-        server = smtplib.SMTP_SSL(host, port, timeout=30, context=_ctx())
+        server = smtplib.SMTP_SSL(host, port, timeout=30, context=_smtp_context())
     else:
         server = smtplib.SMTP(host, port, timeout=30)
         if settings['use_tls']:
-            server.starttls(context=_ctx())
+            server.starttls(context=_smtp_context())
     try:
         if settings['auth_username'] and settings['auth_password'] and not encrypted:
             server.login(settings['auth_username'], settings['auth_password'])

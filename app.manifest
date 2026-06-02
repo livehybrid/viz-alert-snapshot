@@ -5,7 +5,7 @@
         "id": {
             "group": null,
             "name": "viz-alert-snapshot",
-            "version": "0.1.0"
+            "version": "1.0.0"
         },
         "author": [
             { "name": "Will Searle", "email": "will@livehybrid.com", "company": "LiveHybrid" }
@@ -15,7 +15,7 @@
         "classification": {
             "intendedAudience": "IT",
             "categories": ["Utilities", "Alert Actions"],
-            "developmentStatus": "Development"
+            "developmentStatus": "Production"
         },
         "commonInformationModels": null,
         "license": { "name": "Apache-2.0" },

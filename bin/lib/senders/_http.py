@@ -11,12 +11,9 @@ import urllib.request
 
 
 def _ctx():
-    c = ssl.create_default_context()
-    # Splunk-internal / self-signed endpoints; external APIs use valid certs so
-    # this only relaxes verification, never weakens for public hosts in practice.
-    c.check_hostname = False
-    c.verify_mode = ssl.CERT_NONE
-    return c
+    # External channel APIs (Telegram, Slack, user webhooks) use publicly-trusted
+    # certificates, so verify them fully (system CA bundle + hostname check).
+    return ssl.create_default_context()
 
 
 def post_json(url, obj, headers=None, timeout=30):
