@@ -22,9 +22,7 @@
         "privacyPolicy": null,
         "releaseNotes": null
     },
-    "dependencies": {
-        "splunk-visual-exporter": "*"
-    },
+    "dependencies": null,
     "tasks": null,
     "incompatibleApps": null,
     "platformRequirements": {
