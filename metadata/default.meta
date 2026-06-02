@@ -16,3 +16,6 @@ access = read : [ * ], write : [ admin, sc_admin, power ]
 # Lookup over the collection, so `| inputlookup alert_viz_configs` works anywhere.
 [transforms/alert_viz_configs]
 export = system
+
+[alert_actions/render_and_notify]
+export = system

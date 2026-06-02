@@ -91,3 +91,23 @@ export async function saveConfig(config, signal) {
     });
     return asJson(resp);
 }
+
+/** Channel registry + which credentials are set (values never returned). */
+export async function getSettings(signal) {
+    const init = getDefaultFetchInit();
+    const resp = await fetch(url('viz_alert/settings'), { ...init, method: 'GET', signal });
+    return asJson(resp);
+}
+
+/** Save channel credentials (empty string clears a credential). */
+export async function saveSettings(tokens, signal) {
+    const init = getDefaultFetchInit();
+    const resp = await fetch(url('viz_alert/settings'), {
+        ...init,
+        method: 'POST',
+        headers: { ...init.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(tokens),
+        signal,
+    });
+    return asJson(resp);
+}
