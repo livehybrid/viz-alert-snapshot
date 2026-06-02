@@ -49,11 +49,12 @@ SAMPLE_ROWS = [
 APP = 'viz-alert-snapshot'
 
 
-def _oneshot(session_key, spl, earliest='-24h', latest='now', count=MAX_PREVIEW_ROWS):
+def _oneshot(session_key, spl, earliest='-24h', latest='now', count=MAX_PREVIEW_ROWS,
+             search_app=None):
     """Run a count-limited oneshot search and return result rows as dicts.
 
-    Uses splunk.rest (always present in Splunk's python) rather than the
-    splunklib SDK, which isn't installed in every Splunk.
+    Runs in the search's OWN app context so app-scoped macros/lookups resolve.
+    Uses splunk.rest (always present) rather than the splunklib SDK.
     """
     import splunk.rest as rest
     if not spl.lstrip().startswith(('search ', '|', 'search\t')):
@@ -67,18 +68,22 @@ def _oneshot(session_key, spl, earliest='-24h', latest='now', count=MAX_PREVIEW_
         'count': count,
     }
     _, content = rest.simpleRequest(
-        '/servicesNS/nobody/%s/search/jobs' % APP,
+        '/servicesNS/nobody/%s/search/jobs' % (search_app or APP),
         sessionKey=session_key, postargs=postargs, method='POST')
     data = json.loads(content)
     return data.get('results', [])
 
 
-def _resolve_spl(session_key, search_name):
-    """Resolve a saved search name to its SPL + dispatch time range."""
+def _resolve_spl(session_key, search_name, search_app=None):
+    """Resolve a saved search name to its SPL + dispatch time range.
+
+    search_app scopes the lookup so the right search is found when names collide
+    across apps; falls back to the wildcard namespace.
+    """
     import splunk.rest as rest
     from urllib.parse import quote
     _, content = rest.simpleRequest(
-        '/servicesNS/-/%s/saved/searches/%s' % (APP, quote(search_name, safe='')),
+        '/servicesNS/-/%s/saved/searches/%s' % (search_app or '-', quote(search_name, safe='')),
         sessionKey=session_key, getargs={'output_mode': 'json'})
     c = (json.loads(content).get('entry') or [{}])[0].get('content', {})
     return c.get('search', ''), c.get('dispatch.earliest_time', '-24h'), \
@@ -93,12 +98,13 @@ def _get_rows(session_key, cfg):
     spl = cfg.get('spl')
     earliest = cfg.get('earliest', '-24h')
     latest = cfg.get('latest', 'now')
+    search_app = cfg.get('search_app')
     if not spl and cfg.get('search_name'):
-        spl, earliest, latest = _resolve_spl(session_key, cfg['search_name'])
+        spl, earliest, latest = _resolve_spl(session_key, cfg['search_name'], search_app)
     if not spl:
         return SAMPLE_ROWS
     try:
-        rows = _oneshot(session_key, spl, earliest, latest)
+        rows = _oneshot(session_key, spl, earliest, latest, search_app=search_app)
         return rows or SAMPLE_ROWS
     except Exception as e:
         log.warning('oneshot failed (%s); falling back to sample', e)

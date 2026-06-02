@@ -70,16 +70,21 @@ export default function App() {
         setNotice(null);
         setError(null);
         if (!value) return;
+        const meta = searches.find((s) => s.name === value);
         setLoading(true);
         getConfig(value)
             .then((doc) => {
-                const merged = { ...DEFAULT_CONFIG, ...doc, search_name: value, _key: value };
+                const merged = {
+                    ...DEFAULT_CONFIG, ...doc,
+                    search_name: value, _key: value,
+                    search_app: meta?.app, search_owner: meta?.owner,
+                };
                 setConfig(merged);
                 setOptionsText(JSON.stringify(merged.options || {}, null, 2));
             })
             .catch((e2) => setError(`Could not load config: ${e2.message}`))
             .finally(() => setLoading(false));
-    }, []);
+    }, [searches]);
 
     const setField = (k) => (e, { value }) => setConfig((c) => ({ ...c, [k]: value }));
 
@@ -97,6 +102,8 @@ export default function App() {
         return {
             _key: selected,
             search_name: selected,
+            search_app: config.search_app,
+            search_owner: config.search_owner,
             viz_type: config.viz_type,
             width: Number.isFinite(+config.width) ? +config.width : 800,
             height: Number.isFinite(+config.height) ? +config.height : 450,
@@ -170,9 +177,15 @@ export default function App() {
                             <ControlGroup label="Saved search">
                                 <Select value={selected} onChange={onSelectSearch} filter>
                                     <Select.Option label="Select a saved search…" value="" />
-                                    {searches.map((s) => (
-                                        <Select.Option key={s.name} label={s.name} value={s.name} />
-                                    ))}
+                                    {[...searches]
+                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                        .map((s) => (
+                                            <Select.Option
+                                                key={`${s.app}/${s.owner}/${s.name}`}
+                                                label={`${s.name}  ·  ${s.app}`}
+                                                value={s.name}
+                                            />
+                                        ))}
                                 </Select>
                             </ControlGroup>
 

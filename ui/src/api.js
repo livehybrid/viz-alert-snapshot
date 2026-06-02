@@ -33,19 +33,23 @@ async function asJson(resp) {
     return data;
 }
 
-/** List saved searches (alerts/reports) the user can see. */
+/** List ALL saved searches the user can see, across every app/owner.
+ *  Uses the wildcard namespace (/servicesNS/-/-/) so private searches and
+ *  searches in other apps (not just this app's) all show up. */
 export async function getSavedSearches(signal) {
     const init = getDefaultFetchInit();
-    const resp = await fetch(url('saved/searches', { count: 0, f: 'search' }), {
-        ...init,
-        method: 'GET',
-        signal,
-    });
+    const u = new URL(createRESTURL('saved/searches', { app: '-', owner: '-' }), window.location.origin);
+    u.searchParams.append('output_mode', 'json');
+    u.searchParams.append('count', '0');
+    const resp = await fetch(u.toString(), { ...init, method: 'GET', signal });
     const data = await asJson(resp);
     return (data.entry || []).map((e) => ({
         name: e.name,
+        app: e.acl?.app,
+        owner: e.acl?.owner,
+        sharing: e.acl?.sharing,
         search: e.content?.search || '',
-        isAlert: !!e.content?.['alert.track'] || !!e.content?.is_scheduled,
+        scheduled: e.content?.is_scheduled === true || e.content?.is_scheduled === '1',
         earliest: e.content?.['dispatch.earliest_time'] || '-24h',
         latest: e.content?.['dispatch.latest_time'] || 'now',
     }));
