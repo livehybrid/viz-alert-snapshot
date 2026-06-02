@@ -1,93 +1,46 @@
 #!/usr/bin/env python
 """
-render_and_notify.py — custom alert action: render the alert's results as a
-single Splunk visualization (PNG) ONCE, then deliver it to every configured
-destination (email / Telegram / Slack / webhook).
+render_and_notify.py — custom alert action (thin shim).
 
-Config resolution at fire time:
-  1. The saved Visual Alerts config in the KV store (keyed by the search name) —
-     this is what the config UI writes: viz settings, post-search, destinations.
-  2. Falls back to the alert-action params (so it also works without the UI:
-     a single email destination from param.to).
+It does NOT render or read credentials itself. Instead it forwards the alert
+payload to the `viz_alert/execute` REST endpoint using the firing user's session.
+That endpoint runs with passSystemAuth=true and is gated by the
+`run_visual_alert` capability — so the heavy work (and reading channel
+credentials from storage/passwords) happens under system auth, and the firing
+user only needs `run_visual_alert`, not the ability to read passwords.
 
-Channel credentials (bot tokens) come from storage/passwords, never the payload.
+Splunk invokes this as: render_and_notify.py --execute  (JSON payload on stdin).
 """
 import os
 import sys
-import csv
-import gzip
+import ssl
 import json
+import http.client
 import logging
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))
-import snapshot           # noqa: E402
-import kvstore            # noqa: E402
-import secrets as channel_secrets  # noqa: E402
-import senders            # noqa: E402
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                     format='%(asctime)s render_and_notify %(levelname)s %(message)s')
 log = logging.getLogger('render_and_notify')
 
-
-def read_results(path):
-    if not path or not os.path.exists(path):
-        return []
-    with gzip.open(path, 'rt', newline='') as f:
-        return list(csv.DictReader(f))
+EXECUTE_PATH = '/servicesNS/nobody/viz-alert-snapshot/viz_alert/execute'
 
 
-def loadjob_post(session_key, sid, post_search):
-    post = (post_search or '').strip()
-    if not post.startswith('|'):
-        post = '| ' + post
-    spl = '| loadjob %s %s' % (json.dumps(sid), post)
+def _post_execute(session_key, body, host='127.0.0.1', port=8089):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    payload = json.dumps(body).encode('utf-8')
+    conn = http.client.HTTPSConnection(host, port, context=ctx, timeout=120)
     try:
-        import splunk.rest as rest
-        _, content = rest.simpleRequest(
-            '/servicesNS/nobody/viz-alert-snapshot/search/jobs',
-            sessionKey=session_key,
-            postargs={'search': spl, 'exec_mode': 'oneshot', 'output_mode': 'json',
-                      'count': 50000}, method='POST')
-        return json.loads(content).get('results', [])
-    except Exception as e:
-        log.warning('loadjob post-search failed (%s); using raw results', e)
-        return None
-
-
-def load_config(session_key, search_name, params):
-    """Merge KV config (preferred) over alert-action params."""
-    doc = {}
-    try:
-        doc = kvstore.get(session_key, search_name) or {}
-    except Exception as e:
-        log.info('no KV config for "%s" (%s); using params', search_name, e)
-
-    def opt(key, default=None):
-        if doc.get(key) not in (None, '', []):
-            return doc.get(key)
-        return params.get(key, default)
-
-    options = opt('options', {})
-    if isinstance(options, str):
-        try:
-            options = json.loads(options or '{}')
-        except ValueError:
-            options = {}
-
-    destinations = doc.get('destinations') or []
-    if not destinations and params.get('to'):
-        destinations = [{'type': 'email', 'to': params['to']}]
-
-    return {
-        'viz_type': opt('viz_type', 'splunk.line'),
-        'options': options,
-        'width': int(opt('width', 800) or 800),
-        'height': int(opt('height', 450) or 450),
-        'theme': opt('theme', 'dark'),
-        'post_search': opt('post_search', ''),
-        'destinations': destinations,
-    }
+        conn.request('POST', EXECUTE_PATH, body=payload, headers={
+            'Authorization': 'Splunk ' + session_key,
+            'Content-Type': 'application/json',
+            'Content-Length': str(len(payload)),
+        })
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode('utf-8', 'replace')
+    finally:
+        conn.close()
 
 
 def main():
@@ -96,62 +49,32 @@ def main():
         return 2
 
     payload = json.load(sys.stdin)
-    params = payload.get('configuration', {}) or {}
-    search_name = payload.get('search_name', 'Splunk Alert')
     session_key = payload.get('session_key')
-    server_uri = payload.get('server_uri')
-    sid = payload.get('sid')
-
-    subject = params.get('subject') or ('Splunk Alert: %s' % search_name)
-    body = params.get('message') or ('The alert "%s" fired.' % search_name)
-
-    if not snapshot.exporter_available():
-        log.error('splunk-visual-exporter not installed — cannot render. Aborting.')
+    if not session_key:
+        log.error('No session_key in payload; cannot call execute endpoint.')
         return 2
 
-    cfg = load_config(session_key, search_name, params)
-    if not cfg['destinations']:
-        log.error('No destinations configured for "%s". Aborting.', search_name)
-        return 2
-
-    rows = read_results(payload.get('results_file'))
-    if cfg['post_search'] and sid and session_key:
-        processed = loadjob_post(session_key, sid, cfg['post_search'])
-        if processed is not None:
-            rows = processed
-    if not rows:
-        log.warning('No results to render; sending nothing.')
-        return 0
-
+    forward = {
+        'search_name': payload.get('search_name', 'Splunk Alert'),
+        'sid': payload.get('sid'),
+        'results_file': payload.get('results_file'),
+        'configuration': payload.get('configuration', {}) or {},
+    }
     try:
-        png, definition, errors = snapshot.render_results_to_png(
-            cfg['viz_type'], rows, width=cfg['width'], height=cfg['height'],
-            title=search_name, options=cfg['options'], theme=cfg['theme'],
-            screenshot_delay=0)
+        status, text = _post_execute(session_key, forward)
     except Exception as e:
-        log.exception('Render failed: %s', e)
+        log.exception('Failed to call execute endpoint: %s', e)
         return 2
-    log.info('Rendered PNG (%d bytes) for "%s"; %d destinations',
-             len(png), search_name, len(cfg['destinations']))
 
-    try:
-        creds = channel_secrets.get_creds(session_key)
-    except Exception as e:
-        log.warning('could not read channel creds (%s)', e)
-        creds = {}
-
-    ctx = {'subject': subject, 'body': body, 'search_name': search_name,
-           'viz_type': cfg['viz_type'], 'server_uri': server_uri,
-           'session_key': session_key, 'creds': creds}
-
-    results = senders.dispatch(cfg['destinations'], png, ctx)
-    failures = 0
-    for r in results:
-        lvl = log.info if r['ok'] else log.error
-        lvl('  -> %s [%s]: %s', r.get('type'), r.get('target'), r.get('detail'))
-        failures += 0 if r['ok'] else 1
-    log.info('Delivered to %d/%d destinations', len(results) - failures, len(results))
-    return 0 if failures == 0 else 2
+    if status == 403:
+        log.error('Execute endpoint denied (403). The firing user/role needs the '
+                  '"run_visual_alert" capability. Response: %s', text[:300])
+        return 2
+    if status >= 400:
+        log.error('Execute endpoint error %s: %s', status, text[:500])
+        return 2
+    log.info('Execute result: %s', text[:500])
+    return 0
 
 
 if __name__ == '__main__':
