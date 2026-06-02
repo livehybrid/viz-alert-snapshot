@@ -43,16 +43,44 @@ export async function getSavedSearches(signal) {
     u.searchParams.append('count', '0');
     const resp = await fetch(u.toString(), { ...init, method: 'GET', signal });
     const data = await asJson(resp);
-    return (data.entry || []).map((e) => ({
-        name: e.name,
-        app: e.acl?.app,
-        owner: e.acl?.owner,
-        sharing: e.acl?.sharing,
-        search: e.content?.search || '',
-        scheduled: e.content?.is_scheduled === true || e.content?.is_scheduled === '1',
-        earliest: e.content?.['dispatch.earliest_time'] || '-24h',
-        latest: e.content?.['dispatch.latest_time'] || 'now',
-    }));
+    return (data.entry || []).map((e) => {
+        const c = e.content || {};
+        const actions = String(c.actions || '').split(',').map((s) => s.trim());
+        const hasAction = actions.includes('render_and_notify') || actions.includes('render_viz_email');
+        // Pull any params configured via the native alert UI, for fallback load.
+        const actionParams = {};
+        ['render_and_notify', 'render_viz_email'].forEach((act) => {
+            const pfx = `action.${act}.param.`;
+            Object.keys(c).forEach((k) => {
+                if (k.startsWith(pfx)) actionParams[k.slice(pfx.length)] = c[k];
+            });
+        });
+        return {
+            name: e.name,
+            app: e.acl?.app,
+            owner: e.acl?.owner,
+            sharing: e.acl?.sharing,
+            search: c.search || '',
+            scheduled: c.is_scheduled === true || c.is_scheduled === '1',
+            earliest: c['dispatch.earliest_time'] || '-24h',
+            latest: c['dispatch.latest_time'] || 'now',
+            hasAction,
+            actionParams,
+        };
+    });
+}
+
+/** Render the config now and deliver to its destinations (test send). */
+export async function testSend(config, signal) {
+    const init = getDefaultFetchInit();
+    const resp = await fetch(url('viz_alert/testsend'), {
+        ...init,
+        method: 'POST',
+        headers: { ...init.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+        signal,
+    });
+    return asJson(resp);
 }
 
 /** Render a config to a PNG (base64) — same engine the alert fires. */
