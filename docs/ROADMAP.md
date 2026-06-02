@@ -56,6 +56,8 @@ existing searches and create new ones with the alert action configured."
 **Preview data strategy** (2.9): fresh last-results → on-demand run → `ds.test`
 sample, so a never-run search still previews. Configurable per config.
 
+| 2.13 | **Post-search (post-process) pipeline** — optional SPL piped onto the alert results before rendering (raw error events → `\| timechart count`). Fire-time via `\| loadjob <sid> \| <post>`; preview shows raw table → processed table → viz | ✅ (fire-time loadjob untested live) |
+
 ---
 
 ## Phase 3 — Multi-channel destinations  (⬜ after P2)
