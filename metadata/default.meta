@@ -1,14 +1,18 @@
+# App metadata. Views and nav stay APP-SCOPED (no global export) so our `home`
+# view never collides with another app's `home`. Only the alert action (and the
+# KV lookup, for convenience) are shared globally.
+
 []
 access = read : [ * ], write : [ admin, sc_admin, power ]
-export = system
 
+# The custom alert action must be visible to alerts in any app.
 [alert_actions/render_viz_email]
 export = system
 
-# KV store collection holding per-saved-search visual-alert configs.
+# KV store collection (read by the UI and the alert action via app-scoped REST).
 [collections/alert_viz_configs]
 access = read : [ * ], write : [ admin, sc_admin, power ]
-export = system
 
+# Lookup over the collection, so `| inputlookup alert_viz_configs` works anywhere.
 [transforms/alert_viz_configs]
 export = system
