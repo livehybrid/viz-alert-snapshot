@@ -40,13 +40,18 @@ existing searches and create new ones with the alert action configured."
 | 2.3 | Preview REST handler `bin/preview.py` (config → PNG b64), `restmap.conf` + `web.conf` | ✅ |
 | 2.4 | ~~Searches REST handler~~ — UI uses stock `saved/searches` REST directly (no custom handler) | ✅ n/a |
 | 2.5 | Config REST handler (CRUD KV via batch_save raw-JSON helper) | ✅ |
-| 2.6 | Template-based `home` view + `home.html` template | ⬜ |
-| 2.7 | React app: search picker (`@splunk/react-ui`) | ⬜ |
-| 2.8 | React: viz type + options form on the search's fields | ⬜ |
-| 2.9 | React: **live preview** panel (poll `/preview`, show PNG, handle loading/error/empty) | ⬜ |
+| 2.6 | Template-based `home` view + `home.html` template + nav + app.conf | ✅ |
+| 2.7 | React app: search picker (`@splunk/react-ui`) | ✅ scaffold |
+| 2.8 | React: viz type + options (JSON) + size/theme/data-strategy | ✅ scaffold (options form: later) |
+| 2.9 | React: **live preview** panel (calls `/preview`, shows PNG, loading/error/empty) | ✅ scaffold |
 | 2.10 | React: create-new-search flow | ⬜ |
-| 2.11 | Save: upsert KV doc + enable `action.render_and_notify` + params on the saved search | ⬜ |
-| 2.12 | Webpack build wired (entries → `stage/appserver/static/pages/home.js`) | ⬜ |
+| 2.11 | Save: upsert KV doc ✅ ; also enable `action.render_and_notify` + params on the saved search | 🟡 KV save done; action-enable: later |
+| 2.12 | Webpack build wired (`ui/` → `appserver/static/pages/home.js`) | ✅ config in place, ⬜ not yet built |
+
+> **P2 frontend is scaffolded, not built.** React source + build config mirror
+> the CIMPlicity reference. Needs `npm install` (@splunk registry) + a **dev
+> Splunk** to build and iterate — must not be built/installed against the
+> production box. See `ui/README.md`.
 
 **Preview data strategy** (2.9): fresh last-results → on-demand run → `ds.test`
 sample, so a never-run search still previews. Configurable per config.

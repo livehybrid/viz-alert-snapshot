@@ -1,0 +1,256 @@
+/*
+ * App.jsx — Visual Alerts configuration UI.
+ *
+ * Point a saved search at a native Splunk visualization, preview the EXACT
+ * image that will be sent (server-rendered, same engine as the alert), and save
+ * the config. Splunk React UI components only.
+ */
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Heading from '@splunk/react-ui/Heading';
+import P from '@splunk/react-ui/Paragraph';
+import Card from '@splunk/react-ui/Card';
+import ControlGroup from '@splunk/react-ui/ControlGroup';
+import Select from '@splunk/react-ui/Select';
+import Text from '@splunk/react-ui/Text';
+import NumberInput from '@splunk/react-ui/Number';
+import Button from '@splunk/react-ui/Button';
+import Message from '@splunk/react-ui/Message';
+import WaitSpinner from '@splunk/react-ui/WaitSpinner';
+import ColumnLayout from '@splunk/react-ui/ColumnLayout';
+
+import { getSavedSearches, getConfig, saveConfig, previewConfig } from './api';
+
+const VIZ_TYPES = [
+    ['splunk.line', 'Line'],
+    ['splunk.area', 'Area'],
+    ['splunk.column', 'Column'],
+    ['splunk.bar', 'Bar'],
+    ['splunk.pie', 'Pie'],
+    ['splunk.singlevalue', 'Single Value'],
+    ['splunk.table', 'Table'],
+    ['splunk.markdown', 'Markdown'],
+];
+
+const DEFAULT_CONFIG = {
+    viz_type: 'splunk.line',
+    width: 800,
+    height: 450,
+    theme: 'dark',
+    data_strategy: 'search',
+    options: {},
+    destinations: [],
+};
+
+export default function App() {
+    const [searches, setSearches] = useState([]);
+    const [selected, setSelected] = useState('');
+    const [config, setConfig] = useState(DEFAULT_CONFIG);
+    const [optionsText, setOptionsText] = useState('{}');
+    const [preview, setPreview] = useState(null); // { png_b64, rows }
+    const [loading, setLoading] = useState(false);
+    const [previewing, setPreviewing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState(null);
+    const [notice, setNotice] = useState(null);
+    const previewAbort = useRef(null);
+
+    // Load saved searches once.
+    useEffect(() => {
+        const ctrl = new AbortController();
+        getSavedSearches(ctrl.signal)
+            .then(setSearches)
+            .catch((e) => setError(`Could not load saved searches: ${e.message}`));
+        return () => ctrl.abort();
+    }, []);
+
+    // When a search is selected, load its existing config (or defaults).
+    const onSelectSearch = useCallback((e, { value }) => {
+        setSelected(value);
+        setPreview(null);
+        setNotice(null);
+        setError(null);
+        if (!value) return;
+        setLoading(true);
+        getConfig(value)
+            .then((doc) => {
+                const merged = { ...DEFAULT_CONFIG, ...doc, search_name: value, _key: value };
+                setConfig(merged);
+                setOptionsText(JSON.stringify(merged.options || {}, null, 2));
+            })
+            .catch((e2) => setError(`Could not load config: ${e2.message}`))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const setField = (k) => (e, { value }) => setConfig((c) => ({ ...c, [k]: value }));
+
+    const parsedOptions = () => {
+        try {
+            return [JSON.parse(optionsText || '{}'), null];
+        } catch (e) {
+            return [null, `Options JSON invalid: ${e.message}`];
+        }
+    };
+
+    const currentConfig = () => {
+        const [opts, optErr] = parsedOptions();
+        if (optErr) throw new Error(optErr);
+        return {
+            _key: selected,
+            search_name: selected,
+            viz_type: config.viz_type,
+            width: Number.isFinite(+config.width) ? +config.width : 800,
+            height: Number.isFinite(+config.height) ? +config.height : 450,
+            theme: config.theme,
+            data_strategy: config.data_strategy,
+            options: opts,
+            destinations: config.destinations || [],
+        };
+    };
+
+    const onPreview = useCallback(() => {
+        setError(null);
+        setNotice(null);
+        let cfg;
+        try {
+            cfg = currentConfig();
+        } catch (e) {
+            setError(e.message);
+            return;
+        }
+        if (previewAbort.current) previewAbort.current.abort();
+        previewAbort.current = new AbortController();
+        setPreviewing(true);
+        previewConfig(cfg, previewAbort.current.signal)
+            .then((res) => setPreview(res))
+            .catch((e) => setError(`Preview failed: ${e.message}`))
+            .finally(() => setPreviewing(false));
+    }, [config, optionsText, selected]);
+
+    const onSave = useCallback(() => {
+        setError(null);
+        let cfg;
+        try {
+            cfg = currentConfig();
+        } catch (e) {
+            setError(e.message);
+            return;
+        }
+        setSaving(true);
+        saveConfig(cfg)
+            .then(() => setNotice(`Saved configuration for “${selected}”.`))
+            .catch((e) => setError(`Save failed: ${e.message}`))
+            .finally(() => setSaving(false));
+    }, [config, optionsText, selected]);
+
+    return (
+        <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
+            <Heading level={1}>Visual Alerts</Heading>
+            <P>
+                Point a saved search at a Splunk visualization, preview the exact image that will be
+                sent when the alert fires, then save. Native Splunk visualizations, rendered
+                server-side.
+            </P>
+
+            {error && (
+                <Message appearance="fill" type="error" onRequestRemove={() => setError(null)}>
+                    {error}
+                </Message>
+            )}
+            {notice && (
+                <Message appearance="fill" type="success" onRequestRemove={() => setNotice(null)}>
+                    {notice}
+                </Message>
+            )}
+
+            <ColumnLayout gutter={20}>
+                <ColumnLayout.Row>
+                    <ColumnLayout.Column span={5}>
+                        <Card style={{ padding: 16 }}>
+                            <Heading level={3}>Source &amp; visualization</Heading>
+                            <ControlGroup label="Saved search">
+                                <Select value={selected} onChange={onSelectSearch} filter>
+                                    <Select.Option label="Select a saved search…" value="" />
+                                    {searches.map((s) => (
+                                        <Select.Option key={s.name} label={s.name} value={s.name} />
+                                    ))}
+                                </Select>
+                            </ControlGroup>
+
+                            {loading && <WaitSpinner size="medium" />}
+
+                            <ControlGroup label="Visualization">
+                                <Select value={config.viz_type} onChange={setField('viz_type')}>
+                                    {VIZ_TYPES.map(([v, l]) => (
+                                        <Select.Option key={v} label={l} value={v} />
+                                    ))}
+                                </Select>
+                            </ControlGroup>
+
+                            <ControlGroup label="Size (px)">
+                                <NumberInput value={+config.width} onChange={setField('width')} min={120} max={2000} />
+                                <NumberInput value={+config.height} onChange={setField('height')} min={120} max={2000} />
+                            </ControlGroup>
+
+                            <ControlGroup label="Theme">
+                                <Select value={config.theme} onChange={setField('theme')}>
+                                    <Select.Option label="Dark" value="dark" />
+                                    <Select.Option label="Light" value="light" />
+                                </Select>
+                            </ControlGroup>
+
+                            <ControlGroup label="Preview data">
+                                <Select value={config.data_strategy} onChange={setField('data_strategy')}>
+                                    <Select.Option label="Run the search" value="search" />
+                                    <Select.Option label="Sample data" value="sample" />
+                                </Select>
+                            </ControlGroup>
+
+                            <ControlGroup label="Viz options (JSON)" help="Dashboard Studio viz options">
+                                <Text
+                                    multiline
+                                    rowsMax={10}
+                                    value={optionsText}
+                                    onChange={(e, { value }) => setOptionsText(value)}
+                                />
+                            </ControlGroup>
+
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                                <Button
+                                    appearance="primary"
+                                    onClick={onPreview}
+                                    disabled={!selected || previewing}
+                                    label={previewing ? 'Rendering…' : 'Preview'}
+                                />
+                                <Button
+                                    onClick={onSave}
+                                    disabled={!selected || saving}
+                                    label={saving ? 'Saving…' : 'Save'}
+                                />
+                            </div>
+                        </Card>
+                    </ColumnLayout.Column>
+
+                    <ColumnLayout.Column span={7}>
+                        <Card style={{ padding: 16, minHeight: 320 }}>
+                            <Heading level={3}>Preview</Heading>
+                            {previewing && <WaitSpinner size="medium" />}
+                            {!previewing && preview?.png_b64 && (
+                                <>
+                                    <img
+                                        alt="visualization preview"
+                                        src={`data:image/png;base64,${preview.png_b64}`}
+                                        style={{ maxWidth: '100%', border: '1px solid #3c444d', borderRadius: 4 }}
+                                    />
+                                    <P>{preview.rows} rows · {preview.viz_type}</P>
+                                </>
+                            )}
+                            {!previewing && !preview && (
+                                <P>Choose a search and click <strong>Preview</strong> to see the image.</P>
+                            )}
+                        </Card>
+                    </ColumnLayout.Column>
+                </ColumnLayout.Row>
+            </ColumnLayout>
+        </div>
+    );
+}

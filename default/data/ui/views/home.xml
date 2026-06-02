@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<view template="viz-alert-snapshot:/templates/home.html" type="html">
+    <label>Visual Alerts</label>
+</view>
