@@ -33,6 +33,31 @@ def read_results(path):
         return list(csv.DictReader(f))
 
 
+def loadjob_post(session_key, sid, post_search):
+    """Run `| loadjob <sid> | <post_search>` against the alert's own job results.
+
+    This reuses the search the alert already ran (no re-dispatch) and applies the
+    post-process pipeline — e.g. turning a list of error events into a timechart.
+    Returns a list of result dicts, or None on failure.
+    """
+    post = (post_search or '').strip()
+    if not post.startswith('|'):
+        post = '| ' + post
+    spl = '| loadjob %s %s' % (json.dumps(sid), post)
+    try:
+        import splunk.rest as rest
+        _, content = rest.simpleRequest(
+            '/servicesNS/nobody/viz-alert-snapshot/search/jobs',
+            sessionKey=session_key,
+            postargs={'search': spl, 'exec_mode': 'oneshot', 'output_mode': 'json',
+                      'count': 50000},
+            method='POST')
+        return json.loads(content).get('results', [])
+    except Exception as e:
+        log.warning('loadjob post-search failed (%s); using raw results', e)
+        return None
+
+
 def main():
     if len(sys.argv) < 2 or sys.argv[1] != '--execute':
         sys.stderr.write('Usage: render_viz_email.py --execute  (called by Splunk)\n')
@@ -63,7 +88,19 @@ def main():
         return 2
 
     rows = read_results(payload.get('results_file'))
-    log.info('Rendering %s for "%s": %d result rows -> %dx%d',
+
+    # Optional post-search: transform the alert's own results before rendering
+    # (e.g. raw error events -> timechart count). Runs via loadjob on the sid.
+    post_search = (cfg.get('post_search') or '').strip()
+    sid = payload.get('sid')
+    session_key = payload.get('session_key')
+    if post_search and sid and session_key:
+        processed = loadjob_post(session_key, sid, post_search)
+        if processed is not None:
+            log.info('Post-search applied: %d raw -> %d processed rows', len(rows), len(processed))
+            rows = processed
+
+    log.info('Rendering %s for "%s": %d rows -> %dx%d',
              viz_type, search_name, len(rows), width, height)
     if not rows:
         log.warning('No results to render; sending nothing.')

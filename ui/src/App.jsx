@@ -17,8 +17,39 @@ import Button from '@splunk/react-ui/Button';
 import Message from '@splunk/react-ui/Message';
 import WaitSpinner from '@splunk/react-ui/WaitSpinner';
 import ColumnLayout from '@splunk/react-ui/ColumnLayout';
+import Table from '@splunk/react-ui/Table';
 
 import { getSavedSearches, getConfig, saveConfig, previewConfig } from './api';
+
+/* A capped, scrollable results table (raw or post-processed). */
+function ResultsTable({ title, data }) {
+    if (!data || !(data.rows || []).length) return null;
+    return (
+        <div style={{ marginTop: 16 }}>
+            <Heading level={4}>
+                {title} <Text as="span" style={{ opacity: 0.6 }}>({data.total} rows)</Text>
+            </Heading>
+            <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid #3c444d', borderRadius: 4 }}>
+                <Table stripeRows>
+                    <Table.Head>
+                        {data.fields.map((f) => (
+                            <Table.HeadCell key={f}>{f}</Table.HeadCell>
+                        ))}
+                    </Table.Head>
+                    <Table.Body>
+                        {data.rows.map((r, i) => (
+                            <Table.Row key={i}>
+                                {data.fields.map((f) => (
+                                    <Table.Cell key={f}>{String(r[f] ?? '')}</Table.Cell>
+                                ))}
+                            </Table.Row>
+                        ))}
+                    </Table.Body>
+                </Table>
+            </div>
+        </div>
+    );
+}
 
 const VIZ_TYPES = [
     ['splunk.line', 'Line'],
@@ -37,6 +68,7 @@ const DEFAULT_CONFIG = {
     height: 450,
     theme: 'dark',
     data_strategy: 'search',
+    post_search: '',
     options: {},
     destinations: [],
 };
@@ -104,6 +136,7 @@ export default function App() {
             search_name: selected,
             search_app: config.search_app,
             search_owner: config.search_owner,
+            post_search: config.post_search || '',
             viz_type: config.viz_type,
             width: Number.isFinite(+config.width) ? +config.width : 800,
             height: Number.isFinite(+config.height) ? +config.height : 450,
@@ -218,6 +251,19 @@ export default function App() {
                                 </Select>
                             </ControlGroup>
 
+                            <ControlGroup
+                                label="Post-search (optional)"
+                                help="Piped onto the alert results, e.g. | timechart count by status. Runs via loadjob on the alert's own results when it fires."
+                            >
+                                <Text
+                                    multiline
+                                    rowsMax={6}
+                                    placeholder="| timechart count by status"
+                                    value={config.post_search || ''}
+                                    onChange={setField('post_search')}
+                                />
+                            </ControlGroup>
+
                             <ControlGroup label="Viz options (JSON)" help="Dashboard Studio viz options">
                                 <Text
                                     multiline
@@ -247,18 +293,35 @@ export default function App() {
                         <Card style={{ padding: 16, minHeight: 320 }}>
                             <Heading level={3}>Preview</Heading>
                             {previewing && <WaitSpinner size="medium" />}
-                            {!previewing && preview?.png_b64 && (
+                            {!previewing && preview && (
                                 <>
-                                    <img
-                                        alt="visualization preview"
-                                        src={`data:image/png;base64,${preview.png_b64}`}
-                                        style={{ maxWidth: '100%', border: '1px solid #3c444d', borderRadius: 4 }}
-                                    />
-                                    <P>{preview.rows} rows · {preview.viz_type}</P>
+                                    {/* Stage 1: raw alert results */}
+                                    <ResultsTable title="Raw results" data={preview.raw} />
+
+                                    {/* Stage 2: post-processed results (only when a post-search ran) */}
+                                    {preview.post_applied && (
+                                        <ResultsTable title="Post-processed results" data={preview.processed} />
+                                    )}
+
+                                    {/* Stage 3: the visualization */}
+                                    {preview.png_b64 && (
+                                        <div style={{ marginTop: 16 }}>
+                                            <Heading level={4}>Visualization</Heading>
+                                            <img
+                                                alt="visualization preview"
+                                                src={`data:image/png;base64,${preview.png_b64}`}
+                                                style={{ maxWidth: '100%', border: '1px solid #3c444d', borderRadius: 4 }}
+                                            />
+                                            <P style={{ opacity: 0.7 }}>
+                                                {preview.processed?.total} rows · {preview.viz_type}
+                                                {preview.post_applied ? ' · post-search applied' : ''}
+                                            </P>
+                                        </div>
+                                    )}
                                 </>
                             )}
                             {!previewing && !preview && (
-                                <P>Choose a search and click <strong>Preview</strong> to see the image.</P>
+                                <P>Choose a search and click <strong>Preview</strong> to see the data flow and image.</P>
                             )}
                         </Card>
                     </ColumnLayout.Column>

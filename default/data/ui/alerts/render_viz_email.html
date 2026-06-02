@@ -61,6 +61,16 @@
   </div>
 
   <div class="control-group">
+    <label class="control-label" for="post_search">Post-search (optional)</label>
+    <div class="controls">
+      <textarea name="action.render_viz_email.param.post_search" id="post_search" class="input-xlarge" rows="2"
+                placeholder="| timechart count by status"></textarea>
+      <span class="help-block">Piped onto the alert's results via <code>loadjob</code> before rendering
+        (e.g. turn raw error events into a timechart count).</span>
+    </div>
+  </div>
+
+  <div class="control-group">
     <label class="control-label" for="options">Viz options (JSON)</label>
     <div class="controls">
       <textarea name="action.render_viz_email.param.options" id="options" class="input-xlarge" rows="2"
