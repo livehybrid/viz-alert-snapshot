@@ -1,0 +1,71 @@
+<form class="form-horizontal form-complex">
+  <div class="control-group">
+    <label class="control-label" for="viz_type">Visualization</label>
+    <div class="controls">
+      <select name="action.render_viz_email.param.viz_type" id="viz_type" class="input-medium">
+        <option value="splunk.line">Line</option>
+        <option value="splunk.area">Area</option>
+        <option value="splunk.column">Column</option>
+        <option value="splunk.bar">Bar</option>
+        <option value="splunk.pie">Pie</option>
+        <option value="splunk.singlevalue">Single Value</option>
+        <option value="splunk.table">Table</option>
+        <option value="splunk.markdown">Markdown</option>
+      </select>
+      <span class="help-block">The Dashboard Studio viz type to render the results as.</span>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label class="control-label" for="to">Email to</label>
+    <div class="controls">
+      <input type="text" name="action.render_viz_email.param.to" id="to" class="input-xlarge"
+             placeholder="alice@example.com, bob@example.com"/>
+      <span class="help-block">Comma-separated recipients.</span>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label class="control-label" for="subject">Subject</label>
+    <div class="controls">
+      <input type="text" name="action.render_viz_email.param.subject" id="subject" class="input-xlarge"
+             placeholder="Splunk Alert: $name$"/>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label class="control-label" for="message">Message</label>
+    <div class="controls">
+      <textarea name="action.render_viz_email.param.message" id="message" class="input-xlarge" rows="2"></textarea>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label class="control-label" for="width">Size (px)</label>
+    <div class="controls">
+      <input type="text" name="action.render_viz_email.param.width" id="width" class="input-mini" placeholder="800"/>
+      &times;
+      <input type="text" name="action.render_viz_email.param.height" id="height" class="input-mini" placeholder="450"/>
+      <span class="help-block">Width &times; height of the rendered PNG (= the panel size).</span>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label class="control-label" for="theme">Theme</label>
+    <div class="controls">
+      <select name="action.render_viz_email.param.theme" id="theme" class="input-medium">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label class="control-label" for="options">Viz options (JSON)</label>
+    <div class="controls">
+      <textarea name="action.render_viz_email.param.options" id="options" class="input-xlarge" rows="2"
+                placeholder='{"splunk.chart.legend.placement":"right"}'></textarea>
+      <span class="help-block">Optional Dashboard Studio viz <code>options</code> object, applied verbatim.</span>
+    </div>
+  </div>
+</form>

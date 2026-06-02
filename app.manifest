@@ -1,0 +1,35 @@
+{
+    "schemaVersion": "2.0.0",
+    "info": {
+        "title": "Viz Alert Snapshot",
+        "id": {
+            "group": null,
+            "name": "viz-alert-snapshot",
+            "version": "0.1.0"
+        },
+        "author": [
+            { "name": "Will Searle", "email": "will@livehybrid.com", "company": "LiveHybrid" }
+        ],
+        "releaseDate": null,
+        "description": "Custom alert action that renders an alert's results as a single Dashboard Studio visualization (PNG) using Splunk's bundled headless Chromium, and emails it. No external browser required.",
+        "classification": {
+            "intendedAudience": "IT",
+            "categories": ["Utilities", "Alert Actions"],
+            "developmentStatus": "Development"
+        },
+        "commonInformationModels": null,
+        "license": { "name": "Apache-2.0" },
+        "privacyPolicy": null,
+        "releaseNotes": null
+    },
+    "dependencies": {
+        "splunk-visual-exporter": "*"
+    },
+    "tasks": null,
+    "incompatibleApps": null,
+    "platformRequirements": {
+        "splunk": { "Enterprise": "*" }
+    },
+    "supportedDeployments": ["_standalone", "_search_head_clustering"],
+    "targetWorkloads": ["_search_heads"]
+}
