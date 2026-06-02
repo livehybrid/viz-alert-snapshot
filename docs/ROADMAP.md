@@ -72,9 +72,11 @@ small senders rather than piggybacking other modular actions.
 | 3.3 | Secrets via `storage/passwords` (`secrets.py`) + `settings_api` endpoint | ✅ |
 | 3.4 | UI: destinations editor + Channels credential modal | ✅ |
 | 3.5 | Telegram `sendPhoto`; Slack external-upload; generic webhook (json/multipart); email | ✅ code (needs creds/relay to test) |
-| 3.6 | Per-destination test-send button | ⬜ |
-| 3.7 | Auto-enable `render_and_notify` on the saved search from Save (opt-in toggle) | ⬜ (manual for now: add the action to the alert) |
+| 3.6 | Per-destination test-send button | ✅ |
+| 3.7 | Auto-enable `render_and_notify` on the saved search from Save (opt-in toggle) | ✅ |
 | 3.8 | MS Teams (Adaptive Card / hosted image) | ⬜ |
+| 3.9 | **Capability-based delivery**: `passSystemAuth` execute endpoint gated by `run_visual_alert` capability; alert action is a thin shim. Firing/testing no longer needs password-read. | ✅ |
+| 3.10 | Email piggybacks Splunk `[email]` — works once Splunk email settings point at a real relay (no separate creds) | ✅ |
 
 ---
 
