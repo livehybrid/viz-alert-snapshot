@@ -15,9 +15,6 @@
         __splunkd_partials__ = ${json_decode(splunkd)};
     </script>
 
-    <%
-    page_path = "/static/app/viz-alert-snapshot/pages/" + page + ".js"
-    %>
-    <script src="${make_url(page_path)}"></script>
+    <script src="${make_url('/static/app/viz-alert-snapshot/pages/home.js')}"></script>
 </body>
 </html>

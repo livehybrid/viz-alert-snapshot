@@ -11,7 +11,7 @@
             { "name": "Will Searle", "email": "will@livehybrid.com", "company": "LiveHybrid" }
         ],
         "releaseDate": null,
-        "description": "Custom alert action that renders an alert's results as a single Dashboard Studio visualization (PNG) using Splunk's bundled headless Chromium, and emails it. No external browser required.",
+        "description": "Render an alert's results as a Splunk visualization (PNG) using Splunk's bundled headless Chromium, then deliver it to email, Telegram, Slack or a webhook. Includes a config UI to point saved searches at a visualization, optionally post-process the results, and preview the exact image that will be sent. No external browser required.",
         "classification": {
             "intendedAudience": "IT",
             "categories": ["Utilities", "Alert Actions"],
