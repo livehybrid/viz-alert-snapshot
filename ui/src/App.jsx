@@ -237,7 +237,7 @@ export default function App() {
             <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Fixed-width left sidebar */}
                 <div style={{ flex: `0 0 ${SIDEBAR_W}px`, width: SIDEBAR_W, maxWidth: '100%' }}>
-                    <Card style={{ padding: 16 }}>
+                    <Card style={{ padding: 16, width: '100%', boxSizing: 'border-box' }}>
                         <Heading level={3}>Source &amp; visualization</Heading>
                         <ControlGroup label="Saved search">
                             <Select value={selected} onChange={onSelectSearch} filter>
@@ -287,7 +287,7 @@ export default function App() {
                         </div>
                     </Card>
 
-                    <Card style={{ padding: 16, marginTop: 16 }}>
+                    <Card style={{ padding: 16, marginTop: 16, width: '100%', boxSizing: 'border-box' }}>
                         <Heading level={3}>Destinations</Heading>
                         {(config.destinations || []).length === 0 && (
                             <P style={{ opacity: 0.7 }}>No destinations yet — add one below.</P>
@@ -307,7 +307,14 @@ export default function App() {
                                     </div>
                                     {(ch?.fields || []).map((f) => (
                                         <ControlGroup key={f.name} label={f.label} labelWidth={130}>
-                                            <Text value={d[f.name] || ''} onChange={(e, { value }) => setDest(idx, f.name, value)} />
+                                            {f.options ? (
+                                                <Select value={d[f.name] || f.options[0]}
+                                                    onChange={(e, { value }) => setDest(idx, f.name, value)}>
+                                                    {f.options.map((o) => <Select.Option key={o} label={o} value={o} />)}
+                                                </Select>
+                                            ) : (
+                                                <Text value={d[f.name] || ''} onChange={(e, { value }) => setDest(idx, f.name, value)} />
+                                            )}
                                         </ControlGroup>
                                     ))}
                                     {needsCred && (

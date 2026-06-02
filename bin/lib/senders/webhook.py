@@ -15,7 +15,7 @@ from . import _http
 
 TYPE = 'webhook'
 LABEL = 'Webhook'
-DEST_FIELDS = [('url', 'Webhook URL', True), ('mode', 'Mode (json|multipart)', False)]
+DEST_FIELDS = [('url', 'Webhook URL', True), ('mode', 'Format', False, ['json', 'multipart'])]
 CRED_KEYS = []
 
 

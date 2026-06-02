@@ -10,11 +10,18 @@ from . import email_sender, telegram, slack, webhook
 _REGISTRY = {m.TYPE: m for m in (email_sender, telegram, slack, webhook)}
 
 
+def _field(f):
+    d = {'name': f[0], 'label': f[1], 'required': f[2]}
+    if len(f) > 3 and f[3]:
+        d['options'] = list(f[3])
+    return d
+
+
 def registry():
     """UI-facing metadata: which channels exist and what fields/creds they need."""
     return [
         {'type': m.TYPE, 'label': m.LABEL,
-         'fields': [{'name': n, 'label': l, 'required': r} for (n, l, r) in m.DEST_FIELDS],
+         'fields': [_field(f) for f in m.DEST_FIELDS],
          'cred_keys': list(m.CRED_KEYS)}
         for m in (email_sender, telegram, slack, webhook)
     ]

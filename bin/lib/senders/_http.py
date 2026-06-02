@@ -29,10 +29,12 @@ def post_json(url, obj, headers=None, timeout=30):
         return r.status, r.read().decode('utf-8', 'replace')
 
 
-def post_multipart(url, fields=None, files=None, headers=None, timeout=60):
+def encode_multipart(fields=None, files=None):
     """
-    fields: { name: str_value }
-    files:  { name: (filename, bytes, content_type) }
+    Build a multipart/form-data body.
+      fields: { name: str_value }
+      files:  { name: (filename, bytes, content_type) }
+    Returns (content_type, body_bytes).
     """
     boundary = uuid.uuid4().hex
     crlf = b'\r\n'
@@ -51,9 +53,12 @@ def post_multipart(url, fields=None, files=None, headers=None, timeout=60):
         out.append(content)
     out.append(b'--' + boundary.encode() + b'--')
     out.append(b'')
-    body = crlf.join(out)
+    return 'multipart/form-data; boundary=%s' % boundary, crlf.join(out)
 
-    h = {'Content-Type': 'multipart/form-data; boundary=%s' % boundary}
+
+def post_multipart(url, fields=None, files=None, headers=None, timeout=60):
+    content_type, body = encode_multipart(fields, files)
+    h = {'Content-Type': content_type, 'Content-Length': str(len(body))}
     if headers:
         h.update(headers)
     req = urllib.request.Request(url, data=body, headers=h, method='POST')
