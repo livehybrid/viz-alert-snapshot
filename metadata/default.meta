@@ -1,6 +1,14 @@
 []
-access = read : [ * ], write : [ admin, power ]
+access = read : [ * ], write : [ admin, sc_admin, power ]
 export = system
 
 [alert_actions/render_viz_email]
+export = system
+
+# KV store collection holding per-saved-search visual-alert configs.
+[collections/alert_viz_configs]
+access = read : [ * ], write : [ admin, sc_admin, power ]
+export = system
+
+[transforms/alert_viz_configs]
 export = system
