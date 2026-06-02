@@ -24,22 +24,51 @@ def _splunkd_get(server_uri, session_key, path, params=None):
         return json.loads(r.read().decode('utf-8'))
 
 
+def _decrypt(val):
+    """Decrypt a Splunk-encrypted value ($1$/$7$…) the way core sendemail does."""
+    if not val:
+        return ''
+    try:
+        from splunk.clilib import cli_common
+        out = cli_common.decrypt(val, setEnv=True, ignoreErrors=True)
+        return out if out is not None else ''
+    except Exception:
+        return ''  # can't decrypt here -> caller will send without auth
+
+
 def get_email_settings(server_uri, session_key):
-    """Pull the [email] stanza Splunk already uses for its built-in email alert."""
-    data = _splunkd_get(server_uri, session_key,
-                        '/services/configs/conf-alert_actions/email',
-                        {'output_mode': 'json'})
-    c = (data.get('entry') or [{}])[0].get('content', {})
+    """
+    Read Splunk's [email] alert-action settings and DECRYPT the SMTP password,
+    mirroring core sendemail: the admin/alert_actions EAI endpoint exposes
+    `clear_password` (still encrypted) which cli_common.decrypt() turns into the
+    real password. Requires an admin/system token (we pass the system token).
+    """
     truthy = ('1', 'true', 'True', True)
+    c = {}
+    # Prefer the Python EAI (same path sendemail uses); fall back to REST.
+    try:
+        import splunk.entity as entity
+        c = dict(entity.getEntity('admin/alert_actions', 'email',
+                                  owner='nobody', sessionKey=session_key))
+    except Exception:
+        for path in ('/services/admin/alert_actions/email',
+                     '/services/configs/conf-alert_actions/email'):
+            try:
+                data = _splunkd_get(server_uri, session_key, path, {'output_mode': 'json'})
+                c = (data.get('entry') or [{}])[0].get('content', {})
+                if c:
+                    break
+            except Exception:
+                continue
+
+    raw_pw = c.get('clear_password') or c.get('auth_password') or ''
     return {
-        'mailserver': c.get('mailserver', 'localhost:25'),
-        'from': c.get('from', 'splunk@localhost'),
+        'mailserver': c.get('mailserver') or 'localhost:25',
+        'from': c.get('from') or 'splunk@localhost',
         'use_ssl': c.get('use_ssl') in truthy,
         'use_tls': c.get('use_tls') in truthy,
-        'auth_username': c.get('auth_username', '') or '',
-        # clear_password is exposed by the conf endpoint to authorized callers;
-        # fall back to auth_password (may be encrypted -> auth simply won't be used).
-        'auth_password': c.get('clear_password') or c.get('auth_password', '') or '',
+        'auth_username': c.get('auth_username') or '',
+        'auth_password': _decrypt(raw_pw),
     }
 
 

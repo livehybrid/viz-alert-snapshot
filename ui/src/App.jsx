@@ -244,8 +244,16 @@ export default function App() {
                 <Button elementRef={channelsBtn} label="Channels…" onClick={() => setSettingsOpen(true)} />
             </div>
 
-            {error && <Message appearance="fill" type="error" onRequestRemove={() => setError(null)}>{error}</Message>}
-            {notice && <Message appearance="fill" type="success" onRequestRemove={() => setNotice(null)}>{notice}</Message>}
+            {error && (
+                <div style={{ margin: '16px 0' }}>
+                    <Message appearance="fill" type="error" onRequestRemove={() => setError(null)}>{error}</Message>
+                </div>
+            )}
+            {notice && (
+                <div style={{ margin: '16px 0' }}>
+                    <Message appearance="fill" type="success" onRequestRemove={() => setNotice(null)}>{notice}</Message>
+                </div>
+            )}
 
             <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Fixed-width left sidebar */}
