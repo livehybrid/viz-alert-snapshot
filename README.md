@@ -89,6 +89,31 @@ $SPLUNK_HOME/bin/splunk cmd python3 \
 - **Native viz only.** Sideloaded custom viz render as the "Unsupported
   visualization" placeholder via this path.
 
+## Developer notes
+
+### KV store / REST — `splunk.rest`, **not** the `splunklib` SDK
+
+We talk to the KV store (and splunkd generally) with Splunk's built-in
+**`splunk.rest.simpleRequest`** — *not* the Splunk SDK for Python (`splunklib`).
+This is deliberate:
+
+- **`splunklib` isn't bundled with Splunk Enterprise.** Using it means *vendoring*
+  the SDK (~1–2 MB) into `bin/lib/` and managing its connection/auth/TLS ourselves.
+  (`preview.py` originally tried `splunklib.client` and hit `ModuleNotFoundError`
+  — the SDK simply isn't installed.)
+- **`splunk.rest` is always present in-splunkd** (REST handlers, alert actions),
+  so there's no vendored dependency and no extra AppInspect surface.
+- **It verifies TLS via Splunk's configured CA.** `simpleRequest` builds its SSL
+  context from `server.conf` (`sslRootCAPath`), so internal calls are verified
+  without disabling verification or hardcoding `etc/auth/cacert.pem`.
+- **KV `batch_save` needs a raw JSON body**, which `simpleRequest(..., jsonargs=…)`
+  sends with the correct `Content-Type` (the `splunk-react-app` pattern recommends
+  this, not the SDK).
+
+If the SDK's ergonomics are ever wanted (e.g. consistency with apps that vendor
+`splunklib`), vendor it under `bin/lib/` and swap out `lib/kvstore.py` — the rest
+of the app only calls `kvstore.{query,get,upsert,delete}()`.
+
 ## Layout (Phase 1)
 
 ```
