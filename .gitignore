@@ -6,3 +6,6 @@ __pycache__/
 node_modules/
 ui/dist/
 .venv/
+.pytest_cache/
+stage/
+dist/
