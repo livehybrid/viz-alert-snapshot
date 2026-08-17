@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # UI webpack/babel toolchain
+  - package-ecosystem: "npm"
+    directory: "/ui"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      ui-toolchain:
+        patterns:
+          - "*"
+
+  # GitHub Actions used by the CI pipeline
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Dev/test Python deps (pytest)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
