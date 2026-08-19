@@ -10,6 +10,11 @@ updates:
       ui-toolchain:
         patterns:
           - "*"
+    ignore:
+      # babel 8 majors break the build (preset chain still requires ^7);
+      # the babel-8 migration is a deliberate task, not a dependabot merge.
+      - dependency-name: "@babel/*"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions used by the CI pipeline
   - package-ecosystem: "github-actions"
@@ -22,3 +27,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Unit tests deliberately run on py3.9 (Splunk Cloud runtime parity
+      # for the alert action) and pytest >=9 requires py3.10.
+      - dependency-name: "pytest"
+        versions: [">=9.0.0"]
