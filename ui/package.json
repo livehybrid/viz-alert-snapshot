@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@splunk/react-page": "^8.3.2",
-    "@splunk/react-ui": "^5.0.0",
+    "@splunk/react-ui": "^5.14.0",
     "@splunk/splunk-utils": "^4.0.1",
     "@splunk/themes": "^1.0.0",
     "react": "^19.2.8",
