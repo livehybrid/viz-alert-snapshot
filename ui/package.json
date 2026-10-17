@@ -9,18 +9,18 @@
   },
   "dependencies": {
     "@splunk/react-page": "^8.3.2",
-    "@splunk/react-ui": "^5.0.0",
-    "@splunk/splunk-utils": "^4.0.1",
+    "@splunk/react-ui": "^5.17.0",
+    "@splunk/splunk-utils": "^4.1.0",
     "@splunk/themes": "^1.0.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "styled-components": "^6.5.3"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
     "@splunk/babel-preset": "^4.0.0",
     "babel-loader": "^10.1.1",
-    "webpack": "^5.109.2",
-    "webpack-cli": "^7.2.2"
+    "webpack": "^5.111.1",
+    "webpack-cli": "^7.2.3"
   }
 }
