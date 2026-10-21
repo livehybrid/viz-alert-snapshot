@@ -21,7 +21,9 @@ permissions:
 jobs:
   test:
     name: unit-tests
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, where setup-python has no 3.9
+    # (the unit tier runs 3.9 on purpose, see dependabot.yml).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Setup Python
@@ -35,7 +37,7 @@ jobs:
 
   package:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -173,7 +175,7 @@ jobs:
     # Dependabot actors get no secrets/egress guarantees; the hermetic unit
     # suite and AppInspect still cover them.
     if: github.actor != 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -233,7 +235,7 @@ jobs:
     name: e2e-playwright (config page in a real browser)
     needs: package
     if: github.actor != 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
