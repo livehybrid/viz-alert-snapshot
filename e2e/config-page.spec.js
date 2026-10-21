@@ -162,7 +162,7 @@ test('channel credentials are masked and never reach the browser', async ({ splu
         expect(await telegramHelp()).not.toMatch(/not set/);
         await expect(input).toHaveAttribute('type', 'password');
         await expect(input).toHaveValue('');
-        await expect(field.locator('[data-test="password-toggle"]')).toHaveCount(0);
+        await expect(modal.locator('[data-test="password-toggle"]')).toHaveCount(0);
 
         // The stored secret is in no response the page received, nor in the DOM.
         const seen = (await Promise.all(bodies)).filter((b) => b.includes(seeded));
