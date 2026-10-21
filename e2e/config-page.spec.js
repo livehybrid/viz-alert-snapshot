@@ -153,9 +153,13 @@ test('channel credentials are masked and never reach the browser', async ({ splu
         const modal = configPage.getByRole('dialog', { name: 'Channel credentials' });
         await expect(modal).toBeVisible();
         const input = modal.getByRole('textbox', { name: 'Telegram bot token' });
-        const field = modal.locator('[data-test="control-group"]', { has: input });
-        await expect(field).toContainText('configured');
-        await expect(field).not.toContainText('not set');
+        // The help line under the Telegram field (the next field is Slack's).
+        const telegramHelp = async () => {
+            const t = await modal.innerText();
+            return t.slice(t.indexOf('Telegram bot token'), t.indexOf('Slack bot token')).replace(/\s+/g, ' ');
+        };
+        await expect.poll(telegramHelp).toMatch(/\bconfigured\b/);
+        expect(await telegramHelp()).not.toMatch(/not set/);
         await expect(input).toHaveAttribute('type', 'password');
         await expect(input).toHaveValue('');
         await expect(field.locator('[data-test="password-toggle"]')).toHaveCount(0);
