@@ -9,3 +9,4 @@ ui/dist/
 .pytest_cache/
 stage/
 dist/
+e2e-results/

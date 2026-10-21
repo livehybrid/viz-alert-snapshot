@@ -15,6 +15,16 @@ updates:
       # the babel-8 migration is a deliberate task, not a dependabot merge.
       - dependency-name: "@babel/*"
         update-types: ["version-update:semver-major"]
+      # @splunk/react-page and @splunk/react-ui peer on react 16-18 and
+      # styled-components 5. React 19 removed ReactDOM.render, which
+      # react-page's layout() calls: the config page shipped blank in
+      # v1.1.0 and v1.1.1 ("(0, o.render) is not a function").
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "styled-components"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions used by the CI pipeline
   - package-ecosystem: "github-actions"

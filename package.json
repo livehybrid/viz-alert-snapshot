@@ -1,0 +1,12 @@
+{
+  "name": "viz-alert-snapshot-dev",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev tooling for viz-alert-snapshot: Playwright e2e of the configuration page against a real Splunk. Not shipped in the app package; the UI itself builds from ui/.",
+  "scripts": {
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
