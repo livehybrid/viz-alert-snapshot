@@ -16,6 +16,8 @@ const S_INVALID = `vas_e2e_invalid_${RUN}`;
 const ALL = [S_EXISTING, S_SAVE, S_INVALID];
 
 test.beforeAll(async ({ splunk }) => {
+    // The container reports healthy before the KV store does (10.6 answers 503).
+    await splunk.waitForKvStore();
     for (const s of ALL) await splunk.createSavedSearch(s);
 });
 
@@ -28,8 +30,12 @@ test.afterAll(async ({ splunk }) => {
 
 /** Splunk Web logs ambient errors on a fresh Enterprise container that have
  *  nothing to do with this app (core resources answering 404 and similar).
- *  Anything raised by the app's own bundle or endpoints is never tolerated. */
+ *  Anything raised by the app's own bundle or endpoints is never tolerated,
+ *  except the optional nav-bar logo: Splunk's chrome asks every app for
+ *  static/appLogo.png and falls back to the app label when it is absent. */
+const OPTIONAL_ASSET = /\/viz-alert-snapshot\/static\/appLogo(_2x)?\.png$/;
 function isOurs(text, url) {
+    if (OPTIONAL_ASSET.test(url || '')) return false;
     return /viz-alert-snapshot|viz_alert/.test(`${text} ${url || ''}`);
 }
 
@@ -80,9 +86,9 @@ test('existing settings display', async ({ splunk, configPage }) => {
     const size = group(configPage, 'Size (px)').locator('input');
     await expect(size.nth(0)).toHaveValue('1024');
     await expect(size.nth(1)).toHaveValue('333');
-    await expect(group(configPage, 'Post-search (optional)').locator('textarea'))
+    await expect(configPage.getByRole('textbox', { name: 'Post-search (optional)' }))
         .toHaveValue('| stats count by e2e_marker');
-    await expect(group(configPage, 'Viz options (JSON)').locator('textarea')).toHaveValue(/"e2e-option": "seeded"/);
+    await expect(configPage.getByRole('textbox', { name: 'Viz options (JSON)' })).toHaveValue(/"e2e-option": "seeded"/);
 });
 
 test('a change saves and survives a reload', async ({ splunk, configPage }) => {
@@ -93,7 +99,7 @@ test('a change saves and survives a reload', async ({ splunk, configPage }) => {
     const width = group(configPage, 'Size (px)').locator('input').nth(0);
     await width.fill('777');
     await width.press('Tab');
-    await group(configPage, 'Post-search (optional)').locator('textarea').fill('| head 5');
+    await configPage.getByRole('textbox', { name: 'Post-search (optional)' }).fill('| head 5');
     await group(configPage, 'Theme').locator('[data-test="select"]').click();
     await configPage.locator('[data-test="option"]').filter({ hasText: /^Light$/ }).click();
 
@@ -114,12 +120,12 @@ test('a change saves and survives a reload', async ({ splunk, configPage }) => {
     await expect(configPage.getByText('Loaded existing configuration from saved config.')).toBeVisible();
     await expect(group(configPage, 'Size (px)').locator('input').nth(0)).toHaveValue('777');
     await expect(group(configPage, 'Theme').locator('[data-test="select"]')).toHaveText('Light');
-    await expect(group(configPage, 'Post-search (optional)').locator('textarea')).toHaveValue('| head 5');
+    await expect(configPage.getByRole('textbox', { name: 'Post-search (optional)' })).toHaveValue('| head 5');
 });
 
 test('invalid viz options show a validation error and store nothing', async ({ splunk, configPage }) => {
     await chooseSearch(configPage, S_INVALID);
-    await group(configPage, 'Viz options (JSON)').locator('textarea').fill('{"broken": ');
+    await configPage.getByRole('textbox', { name: 'Viz options (JSON)' }).fill('{"broken": ');
     await configPage.getByRole('button', { name: 'Save', exact: true }).click();
 
     await expect(configPage.locator('[data-test="message"][data-test-type="error"]'))
@@ -144,11 +150,11 @@ test('channel credentials are masked and never reach the browser', async ({ splu
         await expect(configPage.getByRole('heading', { name: 'Visual Alerts', level: 1 })).toBeVisible();
 
         await configPage.getByRole('button', { name: 'Channels…' }).click();
-        const modal = configPage.locator('[data-test="modal"]');
+        const modal = configPage.getByRole('dialog', { name: 'Channel credentials' });
         await expect(modal).toBeVisible();
         const field = group(modal, 'Telegram bot token');
         await expect(field.locator('[data-test="help"]')).toHaveText('configured');
-        const input = field.locator('input');
+        const input = modal.getByRole('textbox', { name: 'Telegram bot token' });
         await expect(input).toHaveAttribute('type', 'password');
         await expect(input).toHaveValue('');
         await expect(field.locator('[data-test="password-toggle"]')).toHaveCount(0);

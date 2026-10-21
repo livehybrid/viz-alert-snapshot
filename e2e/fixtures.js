@@ -31,6 +31,20 @@ class SplunkRest {
         await this.ctx.delete(`${NS}/saved/searches/${encodeURIComponent(name)}`);
     }
 
+    /** Block until the app's collection answers (the KV store lags splunkweb
+     *  at boot; 10.6 says 503 "KV Store is initializing"). */
+    async waitForKvStore(timeoutMs = 300000) {
+        const deadline = Date.now() + timeoutMs;
+        let last = '';
+        while (Date.now() < deadline) {
+            const r = await this.ctx.get(`${this.kvPath()}?output_mode=json&limit=1`);
+            if (r.ok()) return;
+            last = `HTTP ${r.status()} ${(await r.text()).slice(0, 160)}`;
+            await new Promise((res) => setTimeout(res, 5000));
+        }
+        throw new Error(`KV store not ready after ${timeoutMs} ms (last: ${last})`);
+    }
+
     kvPath(key) {
         return `${NS}/storage/collections/data/alert_viz_configs${key ? `/${encodeURIComponent(key)}` : ''}`;
     }
