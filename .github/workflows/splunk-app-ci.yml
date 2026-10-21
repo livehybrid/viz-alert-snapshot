@@ -81,6 +81,12 @@ jobs:
                 --exclude '/dist/' \
                 --exclude '/stage/' \
                 --exclude '/requirements-dev.txt' \
+                --exclude '/e2e/' \
+                --exclude '/node_modules/' \
+                --exclude '/package.json' \
+                --exclude '/package-lock.json' \
+                --exclude '/playwright.config.js' \
+                --exclude 'e2e-results/' \
                 --exclude '.pytest_cache/' \
                 --exclude '.venv/' \
                 --exclude '__pycache__/' \
@@ -223,6 +229,76 @@ jobs:
         working-directory: docker
         run: docker compose down -v || true
 
+  e2e-playwright:
+    name: e2e-playwright (config page in a real browser)
+    needs: package
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Same matrix as the integration tier.
+        splunk: ["10.4.0", "10.6.0"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Unpack staged app
+        shell: bash
+        run: |
+          mkdir -p stage-app
+          tar -xzf dist/viz-alert-snapshot-*.tar.gz -C stage-app --strip-components=1
+          chmod -R 777 stage-app
+
+      - name: Start Splunk (wait for health)
+        working-directory: docker
+        env:
+          APP_DIR: ${{ github.workspace }}/stage-app
+          SPLUNK_IMAGE_TAG: ${{ matrix.splunk }}
+        run: docker compose up -d --wait --wait-timeout 420
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run config page e2e
+        env:
+          SPLUNK_WEB_URL: http://localhost:8000
+          SPLUNK_MGMT_URL: https://localhost:8089
+          SPLUNK_USER: admin
+          SPLUNK_PASSWORD: Changeme1!
+        run: npx playwright test
+
+      - name: Upload e2e artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results-${{ matrix.splunk }}
+          path: e2e-results/
+          if-no-files-found: ignore
+
+      - name: Splunk logs on failure
+        if: failure()
+        working-directory: docker
+        run: docker compose logs --tail 200 splunk || true
+
+      - name: Tear down
+        if: always()
+        working-directory: docker
+        run: docker compose down -v || true
+
   appinspect:
     name: quality-appinspect
     needs: package
@@ -247,6 +323,7 @@ jobs:
     needs:
       - appinspect
       - integration-test
+      - e2e-playwright
     uses: livehybrid/deploy-splunk-app-action/.github/workflows/publish.yml@main
 
   publish-splunkbase:
