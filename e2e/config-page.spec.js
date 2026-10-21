@@ -152,9 +152,10 @@ test('channel credentials are masked and never reach the browser', async ({ splu
         await configPage.getByRole('button', { name: 'Channels…' }).click();
         const modal = configPage.getByRole('dialog', { name: 'Channel credentials' });
         await expect(modal).toBeVisible();
-        const field = group(modal, 'Telegram bot token');
-        await expect(field.locator('[data-test="help"]')).toHaveText('configured');
         const input = modal.getByRole('textbox', { name: 'Telegram bot token' });
+        const field = modal.locator('[data-test="control-group"]', { has: input });
+        await expect(field).toContainText('configured');
+        await expect(field).not.toContainText('not set');
         await expect(input).toHaveAttribute('type', 'password');
         await expect(input).toHaveValue('');
         await expect(field.locator('[data-test="password-toggle"]')).toHaveCount(0);

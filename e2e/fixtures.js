@@ -18,7 +18,25 @@ const LOCALE = 'en-GB';
 const HOME_PATH = `/${LOCALE}/app/${APP}/home`;
 
 class SplunkRest {
-    constructor(ctx) { this.ctx = ctx; }
+    constructor(ctx) {
+        // splunkd drops idle keep-alive sockets, so a call after a quiet spell
+        // can die with ECONNRESET before reaching it. Retry network errors
+        // only; an HTTP status is always returned to the caller as-is.
+        const retry = (fn) => async (...args) => {
+            for (let i = 1; ; i += 1) {
+                try {
+                    return await fn(...args);
+                } catch (e) {
+                    if (i >= 3 || !/ECONNRESET|socket hang up|EPIPE/.test(String(e))) throw e;
+                }
+            }
+        };
+        this.ctx = {
+            get: retry((...a) => ctx.get(...a)),
+            post: retry((...a) => ctx.post(...a)),
+            delete: retry((...a) => ctx.delete(...a)),
+        };
+    }
 
     async createSavedSearch(name, search = '| makeresults count=3 | eval n=1') {
         const r = await this.ctx.post(`${NS}/saved/searches?output_mode=json`, {
