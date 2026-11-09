@@ -8,7 +8,7 @@
     "watch": "webpack --watch --mode development"
   },
   "dependencies": {
-    "@splunk/react-page": "^8.3.2",
+    "@splunk/react-page": "^8.4.0",
     "@splunk/react-ui": "^5.17.0",
     "@splunk/splunk-utils": "^4.1.0",
     "@splunk/themes": "^1.0.0",
@@ -17,10 +17,10 @@
     "styled-components": "^5.3.11"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.7",
+    "@babel/core": "^7.29.13",
     "@splunk/babel-preset": "^4.0.0",
     "babel-loader": "^10.1.1",
-    "webpack": "^5.111.1",
-    "webpack-cli": "^7.2.3"
+    "webpack": "^5.112.2",
+    "webpack-cli": "^7.3.1"
   }
 }
