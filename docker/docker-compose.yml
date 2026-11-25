@@ -1,8 +1,14 @@
 # Ephemeral Splunk for the live integration tier.
 # APP_DIR points at a STAGED copy of the app (the CI package job's output) so
 # the container sees exactly what a release tarball would contain. The render
-# test needs Splunk's bundled splunk-visual-exporter (Chromium) — present in
+# test needs Splunk's bundled splunk-visual-exporter (Chromium), present in
 # the stock Enterprise image.
+#
+# `mock` is the delivery receiver for the alert action end-to-end tests: plain
+# HTTP webhooks, an SMTP sink, and HTTPS under the names api.telegram.org and
+# slack.com (network aliases, so the senders' hard-coded hosts resolve to it
+# inside this network only). docker/mock/gen_certs.sh makes the throwaway CA
+# and server cert; CI then adds the CA to the trust store of Splunk's Python.
 services:
   splunk:
     image: splunk/splunk:${SPLUNK_IMAGE_TAG:-10.4.0}
@@ -16,9 +22,32 @@ services:
       - "8089:8089"
     volumes:
       - ${APP_DIR:-../stage/viz-alert-snapshot}:/opt/splunk/etc/apps/viz-alert-snapshot
+      - ./mock/certs:/opt/ci-certs:ro
     healthcheck:
       test: ["CMD", "curl", "-sSf", "http://localhost:8000/en-GB/account/login"]
       interval: 10s
       timeout: 5s
       retries: 60
       start_period: 60s
+
+  mock:
+    image: python:3.12-slim
+    container_name: viz_alert_snapshot_mock
+    command: ["python", "-u", "/mock/mock_receiver.py"]
+    volumes:
+      - ./mock:/mock:ro
+    environment:
+      MOCK_TLS_CERT: /mock/certs/server.pem
+      MOCK_TLS_KEY: /mock/certs/server.key
+    ports:
+      - "18080:8080"
+    networks:
+      default:
+        aliases:
+          - api.telegram.org
+          - slack.com
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/_deliveries',timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

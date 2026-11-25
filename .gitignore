@@ -10,3 +10,4 @@ ui/dist/
 stage/
 dist/
 e2e-results/
+docker/mock/certs/

@@ -188,8 +188,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 10.4.0 is what the viz was built and first released on; 10.6.0 is current.
-        splunk: ["10.4.0", "10.6.0"]
+        # 10.0 is the oldest declared version, 10.4.0 is what the viz was built
+        # and first released on, 10.6.0 is current.
+        splunk: ["10.0", "10.4.0", "10.6.0"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -209,12 +210,32 @@ jobs:
           # write into it; throwaway copy, never the artefact.
           chmod -R 777 stage-app
 
-      - name: Start Splunk (wait for health)
+      - name: Generate mock receiver certificates
+        run: docker/mock/gen_certs.sh
+
+      - name: Start Splunk and the mock receiver (wait for health)
         working-directory: docker
         env:
           APP_DIR: ${{ github.workspace }}/stage-app
           SPLUNK_IMAGE_TAG: ${{ matrix.splunk }}
         run: docker compose up -d --wait --wait-timeout 420
+
+      - name: Trust the mock CA in Splunk's Python
+        # The Telegram and Slack senders verify TLS with ssl.create_default_context().
+        # Splunk runs its Python with SSL_CERT_FILE=$SPLUNK_HOME/openssl/cert.pem
+        # (the interpreter's compiled-in default path does not exist), so append
+        # the throwaway CI CA there: HTTPS to the mock, aliased as
+        # api.telegram.org and slack.com, then verifies exactly as a real host does.
+        shell: bash
+        run: |
+          C=viz_alert_snapshot_splunk
+          docker exec -u root "$C" sh -c 'cat /opt/ci-certs/ca.pem >> /opt/splunk/openssl/cert.pem'
+          # Prove it from every bundled interpreter, with full verification.
+          for py in python3.9 python3.13; do
+            docker exec "$C" test -x /opt/splunk/bin/$py || continue
+            docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd $py -c "import ssl,urllib.request;print('$py verified', urllib.request.urlopen('https://api.telegram.org/_trustcheck', context=ssl.create_default_context(), timeout=10).status, urllib.request.urlopen('https://slack.com/_trustcheck', context=ssl.create_default_context(), timeout=10).status)"
+          done
+          curl -s -X DELETE http://127.0.0.1:18080/_deliveries
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -349,7 +370,9 @@ jobs:
     uses: livehybrid/deploy-splunk-app-action/.github/workflows/publish-splunkbase.yml@main
     with:
       app_id: "8817"
-      splunk_versions: "10.6,10.5,10.4,10.3,10.2,10.1,10.0,9.4"
+      # 10.0 is the oldest version CI tests (the alert action fires end to end
+      # there); 9.4 was declared but never tested, so it is no longer claimed.
+      splunk_versions: "10.6,10.5,10.4,10.3,10.2,10.1,10.0"
     secrets:
       splunkbase_username: ${{ secrets.SPLUNKBASE_USERNAME }}
       splunkbase_password: ${{ secrets.SPLUNKBASE_PASSWORD }}
