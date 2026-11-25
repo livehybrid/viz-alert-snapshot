@@ -147,11 +147,15 @@ def render_png_bytes(definition, theme='dark', screenshot_delay=0, timeout=30):
     engine = ChromiumEngine()
     errors = []
     kwargs = {'timeout': timeout, 'screenshot_delay': screenshot_delay, 'file_format': 'png'}
-    # The bundled exporter's signature differs between Splunk versions (10.0's
-    # get_screenshot has no screenshot_delay). Pass only what it accepts.
+    # The bundled exporter's signature differs between Splunk versions. 10.4+
+    # takes screenshot_delay and file_format (default 'pdf'); 10.0 takes
+    # screenshotDelay and has no file_format (it always returns a PNG). Pass
+    # only what this Splunk's engine accepts.
     try:
         params = inspect.signature(engine.get_screenshot).parameters
         if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
+            if 'screenshot_delay' not in params and 'screenshotDelay' in params:
+                kwargs['screenshotDelay'] = kwargs.pop('screenshot_delay')
             kwargs = {k: v for k, v in kwargs.items() if k in params}
     except (TypeError, ValueError):
         pass

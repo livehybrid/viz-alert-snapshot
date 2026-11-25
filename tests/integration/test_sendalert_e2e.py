@@ -381,7 +381,8 @@ def adhoc_email(ready, all_channels):
     tag = uuid.uuid4().hex[:10]
     addr, subject = f"adhoc-{tag}@example.test", f"VAS e2e ad hoc {tag}"
     st, b = splunk("POST", "/servicesNS/admin/search/search/jobs", form={
-        "search": f'{SPL_ROWS} | sendalert render_and_notify param.to="{addr}" param.subject="{subject}"',
+        "search": (f'{SPL_ROWS} | sendalert render_and_notify param.to="{addr}" param.subject="{subject}" '
+                   f'param.width={WIDTH} param.height={HEIGHT}'),
         "exec_mode": "oneshot", "output_mode": "json", "earliest_time": "-24h", "latest_time": "now"})
     assert st == 200 and '"FATAL"' not in b, f"ad hoc sendalert -> {st}: {b[:400]}"
     wait_for(lambda rs: [r for r in rs if r["channel"] == "smtp" and any(addr in x for x in r["rcpts"])], 1)
