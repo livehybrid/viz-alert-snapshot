@@ -188,8 +188,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 10.4.0 is what the viz was built and first released on; 10.6.0 is current.
-        splunk: ["10.4.0", "10.6.0"]
+        # 10.0 is the oldest declared version, 10.4.0 is what the viz was built
+        # and first released on, 10.6.0 is current.
+        splunk: ["10.0", "10.4.0", "10.6.0"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -209,12 +210,30 @@ jobs:
           # write into it; throwaway copy, never the artefact.
           chmod -R 777 stage-app
 
-      - name: Start Splunk (wait for health)
+      - name: Generate mock receiver certificates
+        run: docker/mock/gen_certs.sh
+
+      - name: Start Splunk and the mock receiver (wait for health)
         working-directory: docker
         env:
           APP_DIR: ${{ github.workspace }}/stage-app
           SPLUNK_IMAGE_TAG: ${{ matrix.splunk }}
         run: docker compose up -d --wait --wait-timeout 420
+
+      - name: Trust the mock CA in Splunk's Python
+        # The Telegram and Slack senders verify TLS against the default trust
+        # store of Splunk's bundled Python. Append the throwaway CI CA to it for
+        # every bundled interpreter, so HTTPS to the mock (aliased as
+        # api.telegram.org and slack.com) verifies exactly as a real host would.
+        shell: bash
+        run: |
+          C=viz_alert_snapshot_splunk
+          for py in $(docker exec "$C" sh -c 'ls /opt/splunk/bin/python3* 2>/dev/null' | grep -E 'python3(\.[0-9]+)?$'); do
+            f=$(docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd "$(basename "$py")" -c 'import ssl;p=ssl.get_default_verify_paths();print(p.openssl_cafile)')
+            echo "$py -> $f ($(docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd "$(basename "$py")" -c 'import ssl;print(ssl.get_default_verify_paths())'))"
+            docker exec -u root "$C" sh -c "mkdir -p \"\$(dirname '$f')\" && cat /opt/ci-certs/ca.pem >> '$f'"
+          done
+          docker exec "$C" sh -c 'tr "\\0" "\\n" < /proc/$(pgrep -o splunkd)/environ | grep -i -E "ssl|cert" || true'
 
       - name: Setup Python
         uses: actions/setup-python@v7
