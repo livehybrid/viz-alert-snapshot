@@ -221,44 +221,21 @@ jobs:
         run: docker compose up -d --wait --wait-timeout 420
 
       - name: Trust the mock CA in Splunk's Python
-        # The Telegram and Slack senders verify TLS against the default trust
-        # store of Splunk's bundled Python. Append the throwaway CI CA to it for
-        # every bundled interpreter, so HTTPS to the mock (aliased as
-        # api.telegram.org and slack.com) verifies exactly as a real host would.
+        # The Telegram and Slack senders verify TLS with ssl.create_default_context().
+        # Splunk runs its Python with SSL_CERT_FILE=$SPLUNK_HOME/openssl/cert.pem
+        # (the interpreter's compiled-in default path does not exist), so append
+        # the throwaway CI CA there: HTTPS to the mock, aliased as
+        # api.telegram.org and slack.com, then verifies exactly as a real host does.
         shell: bash
         run: |
           C=viz_alert_snapshot_splunk
-          for py in $(docker exec "$C" sh -c 'ls /opt/splunk/bin/python3* 2>/dev/null' | grep -E 'python3(\.[0-9]+)?$'); do
-            f=$(docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd "$(basename "$py")" -c 'import ssl;p=ssl.get_default_verify_paths();print(p.openssl_cafile)')
-            echo "$py -> $f ($(docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd "$(basename "$py")" -c 'import ssl;print(ssl.get_default_verify_paths())'))"
-            docker exec -u root "$C" sh -c "mkdir -p \"\$(dirname '$f')\" && cat /opt/ci-certs/ca.pem >> '$f'"
-          done
-          docker exec "$C" getent hosts api.telegram.org slack.com
-          # TEMP diagnostics
-          cat > /tmp/diag.py <<'PY'
-          import ssl, sys, os, socket
-          print(sys.version, ssl.OPENSSL_VERSION)
-          print(ssl.get_default_verify_paths())
-          c = ssl.create_default_context(); print("default stats", c.cert_store_stats())
-          try:
-              import certifi; print("certifi", certifi.where(), os.path.exists(certifi.where()))
-          except Exception as e: print("no certifi", e)
-          print({k: v for k, v in os.environ.items() if "SSL" in k or "CERT" in k or "OPENSSL" in k})
-          c2 = ssl.create_default_context(cafile="/opt/ci-certs/ca.pem")
-          try:
-              with socket.create_connection(("api.telegram.org", 443), 5) as s:
-                  with c2.wrap_socket(s, server_hostname="api.telegram.org") as t: print("explicit CA ok", t.version())
-          except Exception as e: print("explicit CA FAIL", e)
-          PY
-          docker cp /tmp/diag.py "$C":/tmp/diag.py
-          for py in python3.9 python3.13; do docker exec "$C" test -x /opt/splunk/bin/$py && docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd $py /tmp/diag.py || true; done
-          docker exec "$C" sh -c 'find / -xdev \( -name "cacert.pem" -o -name "ca-bundle*" -o -name "ca-certificates.crt" \) 2>/dev/null | head'
-          docker exec "$C" sh -c 'grep -rn -i "SSL_CERT\|OPENSSL" /opt/splunk/etc/splunk-launch.conf /opt/splunk/bin/setSplunkEnv 2>/dev/null | head'
-          # Prove it: HTTPS to the aliased name must verify from Splunk's Python.
+          docker exec -u root "$C" sh -c 'cat /opt/ci-certs/ca.pem >> /opt/splunk/openssl/cert.pem'
+          # Prove it from every bundled interpreter, with full verification.
           for py in python3.9 python3.13; do
             docker exec "$C" test -x /opt/splunk/bin/$py || continue
-            docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd $py -c "import ssl,urllib.request;print('$py trust', urllib.request.urlopen('https://api.telegram.org/_trustcheck', context=ssl.create_default_context(), timeout=10).status)"
+            docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd $py -c "import ssl,urllib.request;print('$py verified', urllib.request.urlopen('https://api.telegram.org/_trustcheck', context=ssl.create_default_context(), timeout=10).status, urllib.request.urlopen('https://slack.com/_trustcheck', context=ssl.create_default_context(), timeout=10).status)"
           done
+          curl -s -X DELETE http://127.0.0.1:18080/_deliveries
 
       - name: Setup Python
         uses: actions/setup-python@v7
