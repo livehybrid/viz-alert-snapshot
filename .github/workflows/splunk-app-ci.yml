@@ -233,7 +233,10 @@ jobs:
             echo "$py -> $f ($(docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd "$(basename "$py")" -c 'import ssl;print(ssl.get_default_verify_paths())'))"
             docker exec -u root "$C" sh -c "mkdir -p \"\$(dirname '$f')\" && cat /opt/ci-certs/ca.pem >> '$f'"
           done
-          docker exec "$C" sh -c 'tr "\\0" "\\n" < /proc/$(pgrep -o splunkd)/environ | grep -i -E "ssl|cert" || true'
+          # TEMP discovery
+          docker exec -u root "$C" sh -c 'for p in $(pgrep -f "splunkd|persistconn|python"); do echo "PID $p $(tr "\\0" " " < /proc/$p/cmdline | cut -c1-120)"; tr "\\0" "\\n" < /proc/$p/environ | grep -i -E "ssl|cert|python" ; done' || true
+          docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd python3 -c "import sys,inspect;sys.path.append('/opt/splunk/etc/apps/splunk-visual-exporter/bin');from export_utils.chromium.engine import ChromiumEngine;print('SIG', inspect.signature(ChromiumEngine.get_screenshot))" || true
+          docker exec -u splunk "$C" sh -c 'ls /opt/splunk/etc/auth/ | head -30; find /opt/splunk -name "cacert*.pem" -o -name "cert.pem" 2>/dev/null | head' || true
 
       - name: Setup Python
         uses: actions/setup-python@v7

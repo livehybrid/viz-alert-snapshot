@@ -10,6 +10,7 @@ import re
 import sys
 import json
 import base64
+import inspect
 from datetime import datetime, timezone
 
 # ---------------------------------------------------------------------------
@@ -145,9 +146,16 @@ def render_png_bytes(definition, theme='dark', screenshot_delay=0, timeout=30):
     ChromiumEngine = _load_engine()
     engine = ChromiumEngine()
     errors = []
-    data_uri = engine.get_screenshot(
-        definition, theme, {}, errors,
-        timeout=timeout, screenshot_delay=screenshot_delay, file_format='png')
+    kwargs = {'timeout': timeout, 'screenshot_delay': screenshot_delay, 'file_format': 'png'}
+    # The bundled exporter's signature differs between Splunk versions (10.0's
+    # get_screenshot has no screenshot_delay). Pass only what it accepts.
+    try:
+        params = inspect.signature(engine.get_screenshot).parameters
+        if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
+            kwargs = {k: v for k, v in kwargs.items() if k in params}
+    except (TypeError, ValueError):
+        pass
+    data_uri = engine.get_screenshot(definition, theme, {}, errors, **kwargs)
     if not data_uri:
         raise RuntimeError("Chromium render returned no image. Engine errors: %s" % errors)
     b64 = data_uri.split(',', 1)[1]

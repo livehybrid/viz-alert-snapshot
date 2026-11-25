@@ -44,10 +44,15 @@ def load_config(auth_key, search_name, params):
     """Merge the saved KV config (preferred) over alert-action params."""
     import kvstore
     doc = {}
-    try:
-        doc = kvstore.get(auth_key, search_name) or {}
-    except Exception:
-        doc = {}
+    # An ad hoc `| sendalert` has no search name. Asking the KV store for the
+    # empty key returns the whole collection (a list), which used to crash the
+    # action whenever any visual alert was configured; use the params instead.
+    if search_name:
+        try:
+            got = kvstore.get(auth_key, search_name)
+            doc = got if isinstance(got, dict) else {}
+        except Exception:
+            doc = {}
 
     def opt(key, default=None):
         if doc.get(key) not in (None, '', []):
