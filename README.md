@@ -53,6 +53,9 @@ Dashboard Studio's own PDF/PNG export).
 - Splunk email settings configured (Settings → Server settings → Email) — reused
   for delivery.
 - Not for Splunk Cloud (can't import the internal exporter from an app there).
+- Splunk 10.0 to 10.6. CI fires both alert actions end to end on 10.0, 10.4.0
+  and 10.6.0 (see "End-to-end alert tests" below). 9.4 is not tested and not
+  claimed.
 
 ## Use (Phase 1)
 
@@ -90,6 +93,28 @@ $SPLUNK_HOME/bin/splunk cmd python3 \
   visualization" placeholder via this path.
 
 ## Developer notes
+
+### End-to-end alert tests
+
+`tests/integration/test_sendalert_e2e.py` fires the real alert actions from SPL
+and inspects what was delivered. Nothing is scheduled:
+
+- a saved search whose SPL ends in `| sendalert render_and_notify ...`,
+  dispatched on demand over REST, delivers to a JSON webhook, a multipart
+  webhook, email, Telegram and Slack (the destinations saved for it);
+- ad hoc `| sendalert render_and_notify param.to=...` and
+  `| sendalert render_viz_email param.to=...` deliver email. An ad hoc search
+  has no name, so only `param.to` applies.
+
+The receiver is `docker/mock/mock_receiver.py` (stdlib: HTTP, an SMTP sink, and
+HTTPS as `api.telegram.org` and `slack.com` through compose network aliases;
+CI appends a throwaway CA to `$SPLUNK_HOME/openssl/cert.pem`, which Splunk sets
+as `SSL_CERT_FILE`). The tests decode every payload independently (PNG chunks
+and CRCs, IHDR dimensions, inflated IDAT size, MIME, multipart) and check each
+channel got exactly one delivery with the expected title and fields. Locally:
+`docker/mock/gen_certs.sh`, `APP_DIR=... docker compose up -d --wait` in
+`docker/`, append the CA as the CI step does, then
+`SPLUNK_MGMT_URL=https://127.0.0.1:8089 pytest tests/integration`.
 
 ### KV store / REST — `splunk.rest`, **not** the `splunklib` SDK
 
