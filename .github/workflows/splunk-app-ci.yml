@@ -234,6 +234,26 @@ jobs:
             docker exec -u root "$C" sh -c "mkdir -p \"\$(dirname '$f')\" && cat /opt/ci-certs/ca.pem >> '$f'"
           done
           docker exec "$C" getent hosts api.telegram.org slack.com
+          # TEMP diagnostics
+          cat > /tmp/diag.py <<'PY'
+          import ssl, sys, os, socket
+          print(sys.version, ssl.OPENSSL_VERSION)
+          print(ssl.get_default_verify_paths())
+          c = ssl.create_default_context(); print("default stats", c.cert_store_stats())
+          try:
+              import certifi; print("certifi", certifi.where(), os.path.exists(certifi.where()))
+          except Exception as e: print("no certifi", e)
+          print({k: v for k, v in os.environ.items() if "SSL" in k or "CERT" in k or "OPENSSL" in k})
+          c2 = ssl.create_default_context(cafile="/opt/ci-certs/ca.pem")
+          try:
+              with socket.create_connection(("api.telegram.org", 443), 5) as s:
+                  with c2.wrap_socket(s, server_hostname="api.telegram.org") as t: print("explicit CA ok", t.version())
+          except Exception as e: print("explicit CA FAIL", e)
+          PY
+          docker cp /tmp/diag.py "$C":/tmp/diag.py
+          for py in python3.9 python3.13; do docker exec "$C" test -x /opt/splunk/bin/$py && docker exec -u splunk "$C" /opt/splunk/bin/splunk cmd $py /tmp/diag.py || true; done
+          docker exec "$C" sh -c 'find / -xdev \( -name "cacert.pem" -o -name "ca-bundle*" -o -name "ca-certificates.crt" \) 2>/dev/null | head'
+          docker exec "$C" sh -c 'grep -rn -i "SSL_CERT\|OPENSSL" /opt/splunk/etc/splunk-launch.conf /opt/splunk/bin/setSplunkEnv 2>/dev/null | head'
           # Prove it: HTTPS to the aliased name must verify from Splunk's Python.
           for py in python3.9 python3.13; do
             docker exec "$C" test -x /opt/splunk/bin/$py || continue
